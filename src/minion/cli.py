@@ -23,6 +23,12 @@ from .manifest import (
 )
 from .repo import find_repo_root, gather_repo_info
 from .reviewer import select_reviewer
+from .teach import (
+    DEFAULT_USER_NOTES,
+    extract_user_notes,
+    gather_pack,
+    render_minion_md,
+)
 from .teacher import select_teacher
 
 app = typer.Typer(
@@ -186,6 +192,48 @@ def brief(
     out_path = write_brief(mdir / BRIEFS_DIR, content)
     console.print(f"[green]Brief written[/green]: {out_path.relative_to(root)}")
     typer.echo(str(out_path))
+
+
+@app.command()
+def teach(
+    path: Optional[Path] = typer.Option(None, "--path"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Print the generated MINION.md without writing."
+    ),
+) -> None:
+    """Regenerate `.minion/MINION.md` from the repo, preserving user notes."""
+    root = _resolve_root(path)
+    mdir = minion_dir(root)
+    if not mdir.exists():
+        console.print("[red]No .minion/ found.[/red] Run `minion init` first.")
+        raise typer.Exit(code=1)
+
+    cfg = load_config(root)
+    backend = select_backend(root, cfg)
+    info = gather_repo_info(root)
+    files = backend.list_files()
+    pack = gather_pack(root, info, files, cfg)
+
+    minion_md_path = mdir / "MINION.md"
+    existing = (
+        minion_md_path.read_text(encoding="utf-8")
+        if minion_md_path.exists()
+        else ""
+    )
+    user_notes = extract_user_notes(existing) or DEFAULT_USER_NOTES
+    rendered = render_minion_md(pack, user_notes)
+
+    if dry_run:
+        typer.echo(rendered)
+        return
+
+    minion_md_path.write_text(rendered, encoding="utf-8")
+    console.print(f"[green]Taught[/green]: {minion_md_path.relative_to(root)}")
+    console.print(
+        f"  entrypoints: {len(pack.entrypoints)}  configs: {len(pack.config_files)}  "
+        f"tests: {len(pack.test_files)}  docs: {len(pack.doc_files)}"
+    )
+    console.print(f"  taught at: {pack.taught_at}")
 
 
 @app.command()

@@ -35,10 +35,32 @@ Requires Python 3.12+.
 
 ```bash
 minion init                         # set up .minion/ in the current repo
+minion teach                        # populate .minion/MINION.md from the repo
 minion update                       # refresh manifest (git, stack, backends)
 minion status                       # show detected stack + backend availability
 minion brief "add JWT auth flow"    # generate a markdown brief for a task
 ```
+
+### Teaching the repo to itself
+
+`minion teach` regenerates `.minion/MINION.md` from a scan of the repo:
+
+- project name + description (from `pyproject.toml`, `package.json`, or
+  `Cargo.toml`)
+- detected stack
+- key entrypoints, config files, test files, documentation files
+- suggested first files to inspect
+- ignored / do-not-index paths
+
+A user-editable section between
+`<!-- MINION:USER-NOTES:START -->` and `<!-- MINION:USER-NOTES:END -->`
+is **preserved across runs**. Use it for durable notes (purpose,
+ground rules, conventions) that should not be auto-overwritten.
+
+`minion teach --dry-run` prints the rendered MINION.md to stdout
+without touching the file.
+
+### File layout after init
 
 `minion init` creates:
 

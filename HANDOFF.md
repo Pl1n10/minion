@@ -1,22 +1,25 @@
 # HANDOFF.md — Minion
 
-Stato al 2026-05-07 (iterazione 2).
+Stato al 2026-05-07 (iterazione 3).
 
 ## Stato git
 
 - Branch: `main` (su `origin` come `origin/main`)
 - Remote: `git@github.com:Pl1n10/minion.git`
 - Identità locale: `Pl1n10 <robnovara@gmail.com>`
+- Tag remoti: `v0.1.0-mvp` su `7dfb46a`, `v0.2.0` su `a59f395`
 - Ultimi commit (vedi `git log --oneline -n 5`):
+  - `a59f395` feat: content-aware brief, minion update, GitHub Actions CI
   - `034a97c` docs: update HANDOFF with first commit hash and next steps
   - `7dfb46a` chore: initial MVP scaffold for Minion
-- Working tree: dirty — iter 2 da committare in unico commit `feat`
+- Working tree: dirty — iter 3 da committare
 
 ## Goal corrente
 
-Iterazione 2 chiusa: brief davvero utile (content-aware + snippet),
-nuovo comando `minion update`, CI GitHub Actions. Repowise resta
-detection-only.
+Iterazione 3 chiusa: `minion teach` come primo generatore reale di
+knowledge pack. `.minion/MINION.md` ora viene popolata
+automaticamente con sezioni utili e preserva le note utente fra
+rigenerazioni. Repowise resta detection-only e nessuna chiamata LLM.
 
 ## Step completati
 
@@ -46,20 +49,37 @@ detection-only.
     Skippa binary (UTF-8 strict) e oversize (`max_file_bytes`).
 12. `.github/workflows/ci.yml` con `astral-sh/setup-uv@v4`, sync, ruff,
     pytest su push e PR a `main`.
-13. Suite pytest: 29 test verdi. Ruff: clean.
+13. Tag `v0.2.0` su `a59f395`.
+
+### Iterazione 3 — `minion teach`
+
+14. Nuovo modulo `src/minion/teach.py` con classificatori per
+    entrypoints, config, test, doc; estrazione metadata progetto da
+    `pyproject.toml`/`package.json`/`Cargo.toml` via `tomllib`/`json`;
+    suggerimento short list "first files to inspect"; render
+    `MINION.md` a sezioni fisse.
+15. Sezione `<!-- MINION:USER-NOTES:START/END -->` preservata
+    cross-rerun. Estrazione robusta a marker invertiti o assenti.
+16. Comando CLI `minion teach` con `--dry-run` che stampa senza
+    scrivere. Errore esplicito se `.minion/` manca.
+17. Template `MINION.md.tmpl` di `init` ora include i marker user-notes
+    fin dal primo run, così l'utente può scrivere note prima ancora di
+    chiamare `teach`.
+18. Test classificatori e CLI: 44 test totali verdi. Ruff: clean.
 
 ## Step in corso
 
-Commit unico iterazione 2 + push.
+Commit unico iterazione 3 + push.
 
 ## Step pending
 
-1. Push commit iter 2 su `origin/main`.
-2. (Opzionale) tag `v0.1.0-mvp` o `v0.2.0` per allineare al brief
-   davvero utile — decisione utente.
-3. Verificare run CI GitHub Actions al primo push.
+1. Push commit iter 3 su `origin/main`.
+2. (Opzionale) tag `v0.3.0` per il salto "MINION.md auto-popolata".
+3. Verificare run CI sul commit iter 3.
 4. (Follow-up) wrap reale di Repowise via `subprocess` quando il
    progetto Repowise OSS è chiarito.
+5. (Idea) aggiungere a `teach` parsing di `[project.scripts]`/
+   `bin` per scoprire entrypoints dichiarati e non solo per filename.
 
 ## Decisioni di design non ovvie
 
@@ -81,6 +101,19 @@ Commit unico iterazione 2 + push.
 - **Snippet generation legge direttamente dal disco**, non passa per il
   backend. Coerente con la natura del filesystem backend; quando
   Repowise verrà wrappato davvero il flusso snippet andrà rivisto.
+- **`teach` non passa attraverso un Teacher provider.** Il knowledge
+  pack è puramente euristico/locale. Il nome richiama il futuro
+  componente Teacher ma per ora resta deterministico e offline.
+  Uno step LLM-based potrà venir innestato come provider `Teacher.plan`
+  che arricchisce le note utente, senza modificare la struttura del
+  file.
+- **`teach` salva `taught_at` nel rendering, non nel manifest.** Tenere
+  due timestamp separati (`last_updated_at` per `update`, `taught_at`
+  per `teach`) evita falsi positivi nei test e mantiene `update`
+  manifest-only.
+- **Test files non sono mai re-classificati come config**: il loop in
+  `gather_pack` fa `continue` dopo un match test per evitare che es.
+  `tests/test_pyproject.toml` finisca anche fra i config.
 - **`.minion/**` è negli `ignore_globs` di default** del filesystem
   backend e protegge brief, manifest e config dall'auto-indicizzazione.
   Test dedicato lo presidia.
@@ -101,18 +134,20 @@ Commit unico iterazione 2 + push.
 ```bash
 cd /home/hypn0/projects/minion
 uv sync
-uv run pytest -q              # atteso: 29 passed
+uv run pytest -q              # atteso: 44 passed
 uv run ruff check src tests   # atteso: All checks passed
 ```
 
 Smoke manuale:
 
 ```bash
-cd $(mktemp -d) && git init -q && echo '{}' > package.json
+cd $(mktemp -d) && git init -q && echo '{"name":"d","description":"x"}' > package.json
 uv run --project /home/hypn0/projects/minion minion init
+uv run --project /home/hypn0/projects/minion minion teach
 uv run --project /home/hypn0/projects/minion minion update
 uv run --project /home/hypn0/projects/minion minion status
 uv run --project /home/hypn0/projects/minion minion brief "add JWT auth"
+cat .minion/MINION.md
 ls .minion/briefs/
 ```
 
