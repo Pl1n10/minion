@@ -1,0 +1,32 @@
+# Brief: {task}
+
+Generated: {generated_at}
+Backend: {backend_name} ({backend_detail})
+
+## Task
+
+{task}
+
+## Repository snapshot
+
+- Root: `{repo_root}`
+- Branch: `{branch}`
+- HEAD: `{head}`
+- Detected stack: {stack}
+
+## Likely relevant files
+
+{ranked_files}
+
+## Teacher plan (placeholder)
+
+{teacher_plan}
+
+## How to use this brief
+
+1. Hand this file to your coding agent of choice (Claude Code,
+   Codex, Cursor, etc.) as durable context.
+2. The file list is heuristic — prune it before sending if it is
+   noisy.
+3. Replace the noop Teacher in `.minion/config.yaml` to get real
+   step-by-step guidance.
