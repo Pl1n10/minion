@@ -93,4 +93,5 @@ class FilesystemBackend(RepoBackend):
                     language=LANG_EXT.get(path.suffix.lower()),
                 )
             )
+        out.sort(key=lambda f: f.relpath)
         return out

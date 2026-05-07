@@ -37,6 +37,8 @@ class BackendConfig:
 class BriefConfig:
     max_files: int = 25
     max_file_bytes: int = 200_000
+    max_snippet_files: int = 5
+    max_snippet_lines: int = 40
     ignore_globs: list[str] = field(
         default_factory=lambda: [
             ".git/**",

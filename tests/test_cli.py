@@ -69,3 +69,28 @@ def test_brief_creates_markdown(tmp_git_repo: Path) -> None:
 def test_brief_without_init_fails(tmp_repo: Path) -> None:
     result = runner.invoke(app, ["brief", "anything", "--path", str(tmp_repo)])
     assert result.exit_code == 1
+
+
+def test_update_refreshes_manifest_and_preserves_initialized_at(
+    tmp_git_repo: Path,
+) -> None:
+    runner.invoke(app, ["init", "--path", str(tmp_git_repo)])
+    manifest_path = tmp_git_repo / ".minion" / "state" / "manifest.json"
+    before = json.loads(manifest_path.read_text())
+
+    # Mutate the repo so detection sees a difference
+    (tmp_git_repo / "go.mod").write_text("module demo\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["update", "--path", str(tmp_git_repo)])
+    assert result.exit_code == 0, result.stdout
+    after = json.loads(manifest_path.read_text())
+
+    assert after["initialized_at"] == before["initialized_at"]
+    assert after["last_updated_at"] >= before["last_updated_at"]
+    assert "go" in after["stack"]
+    assert any(b["name"] == "filesystem" and b["available"] for b in after["backends"])
+
+
+def test_update_without_init_fails(tmp_repo: Path) -> None:
+    result = runner.invoke(app, ["update", "--path", str(tmp_repo)])
+    assert result.exit_code == 1

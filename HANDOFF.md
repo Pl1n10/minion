@@ -1,21 +1,26 @@
 # HANDOFF.md — Minion
 
-Stato al 2026-05-07.
+Stato al 2026-05-07 (iterazione 2).
 
 ## Stato git
 
-- Branch: `main`
-- Ultimo commit: `7dfb46a` — chore: initial MVP scaffold for Minion
-- Working tree: clean (eccetto eventuali aggiornamenti a HANDOFF.md)
+- Branch: `main` (su `origin` come `origin/main`)
+- Remote: `git@github.com:Pl1n10/minion.git`
 - Identità locale: `Pl1n10 <robnovara@gmail.com>`
-- Remote: nessuno (da creare su GitHub come `git@github.com:Pl1n10/minion.git`)
+- Ultimi commit (vedi `git log --oneline -n 5`):
+  - `034a97c` docs: update HANDOFF with first commit hash and next steps
+  - `7dfb46a` chore: initial MVP scaffold for Minion
+- Working tree: dirty — iter 2 da committare in unico commit `feat`
 
 ## Goal corrente
 
-Chiudere l'MVP: `minion init/status/brief` funzionanti su qualunque repo,
-con backend filesystem solido e Repowise come detection opzionale.
+Iterazione 2 chiusa: brief davvero utile (content-aware + snippet),
+nuovo comando `minion update`, CI GitHub Actions. Repowise resta
+detection-only.
 
 ## Step completati
+
+### Iterazione 1 — MVP base
 
 1. Installato `uv` 0.11.11 in `~/.local/bin`.
 2. `uv init --package` + dipendenze (typer, pyyaml, rich; dev: pytest, pytest-cov, ruff).
@@ -24,18 +29,35 @@ con backend filesystem solido e Repowise come detection opzionale.
 5. Teacher/Reviewer: interfacce + `noop` impl.
 6. `brief.py` con ranking euristico + template markdown.
 7. CLI Typer con `init`, `status`, `brief`.
-8. Suite pytest: 23 test verdi. Ruff: clean.
-9. README + CLAUDE.md + HANDOFF.md (questo file).
+8. Primo commit + push su `origin/main`.
+
+### Iterazione 2 — brief utile + CI
+
+9. Comando `minion update` che rinfresca manifest preservando `initialized_at`.
+   `init` ora usa lo stesso helper `_refresh_manifest` e preserva anch'esso
+   `initialized_at` cross-rerun (a meno di `--force`).
+10. Ranking content-aware in `brief.py`: tokenizza il task, conta hit
+    case-insensitive nei contenuti (whole-word regex), cap per-file per
+    evitare bias da file enormi, output deterministico (filesystem
+    backend ora ordina per relpath).
+11. Sezione `## Snippets` nel brief: top-K file ranked vengono inclusi
+    come fenced code blocks con linguaggio dedotto. Cap su numero file
+    e righe via `BriefConfig.max_snippet_files` / `max_snippet_lines`.
+    Skippa binary (UTF-8 strict) e oversize (`max_file_bytes`).
+12. `.github/workflows/ci.yml` con `astral-sh/setup-uv@v4`, sync, ruff,
+    pytest su push e PR a `main`.
+13. Suite pytest: 29 test verdi. Ruff: clean.
 
 ## Step in corso
 
-Nessuno. MVP completo, primo commit fatto.
+Commit unico iterazione 2 + push.
 
 ## Step pending
 
-1. Creare il repo GitHub `Pl1n10/minion` (via UI o `gh repo create`).
-2. `git remote add origin git@github.com:Pl1n10/minion.git` e `git push -u origin main`.
-3. (Opzionale) tag `v0.1.0-mvp` dopo il primo push.
+1. Push commit iter 2 su `origin/main`.
+2. (Opzionale) tag `v0.1.0-mvp` o `v0.2.0` per allineare al brief
+   davvero utile — decisione utente.
+3. Verificare run CI GitHub Actions al primo push.
 4. (Follow-up) wrap reale di Repowise via `subprocess` quando il
    progetto Repowise OSS è chiarito.
 
@@ -47,9 +69,21 @@ Nessuno. MVP completo, primo commit fatto.
   arrivano dal `FilesystemBackend`. Wrapping di `repowise map` è un
   follow-up dichiarato, non un buco implementativo da nascondere.
 - **`init` idempotente**: re-run non sovrascrive `MINION.md` né
-  `teacher-plan.md` editati a mano. Serve `--force`.
+  `teacher-plan.md` editati a mano. Serve `--force`. Da iter 2 anche
+  `initialized_at` viene preservato cross-rerun.
+- **`update` vs `init`**: `update` non ricrea file template, tocca solo
+  il manifest. `init` resta il punto d'ingresso "first time".
 - **Backend selection in `auto`**: priorità `repowise` se presente,
   altrimenti `filesystem`. Forzabile in `config.yaml`.
+- **Content scoring capped a 5 hit per token**: senza il cap un file di
+  log con migliaia di occorrenze dominerebbe il ranking. Rumore atteso
+  in repo grandi.
+- **Snippet generation legge direttamente dal disco**, non passa per il
+  backend. Coerente con la natura del filesystem backend; quando
+  Repowise verrà wrappato davvero il flusso snippet andrà rivisto.
+- **`.minion/**` è negli `ignore_globs` di default** del filesystem
+  backend e protegge brief, manifest e config dall'auto-indicizzazione.
+  Test dedicato lo presidia.
 - **Teacher/Reviewer minimi di proposito**: solo interfacce + noop.
   Aggiungere prompt engineering qui sarebbe scope creep MVP.
 
@@ -67,7 +101,7 @@ Nessuno. MVP completo, primo commit fatto.
 ```bash
 cd /home/hypn0/projects/minion
 uv sync
-uv run pytest -q              # atteso: 23 passed
+uv run pytest -q              # atteso: 29 passed
 uv run ruff check src tests   # atteso: All checks passed
 ```
 
@@ -76,6 +110,7 @@ Smoke manuale:
 ```bash
 cd $(mktemp -d) && git init -q && echo '{}' > package.json
 uv run --project /home/hypn0/projects/minion minion init
+uv run --project /home/hypn0/projects/minion minion update
 uv run --project /home/hypn0/projects/minion minion status
 uv run --project /home/hypn0/projects/minion minion brief "add JWT auth"
 ls .minion/briefs/
@@ -95,9 +130,11 @@ ls .minion/briefs/
 - Repowise wrapping reale: implementare `RepowiseBackend.list_files()`
   via subprocess su `repowise map` (o equivalente) appena il progetto
   Repowise OSS è chiarito.
-- Il ranker è puramente token-in-path. Su repo grandi può essere
-  inutile per task espressi in linguaggio naturale lontano dai
-  filename. Considerare TF-IDF su contenuti (cap dimensione file).
-- Manca tag `v0.1.0-mvp` in git.
-- Manca CI (Woodpecker pipeline) — coerente con lo stack devbox ma
-  fuori scope MVP.
+- Ranker content-aware ma ancora keyword-based. Per task in linguaggio
+  naturale che non condividono token col codice serve embedding o
+  TF-IDF; rimandato a un'iterazione futura.
+- Manca tag di release (decidere se `v0.1.0-mvp` sull'iter 1 o
+  `v0.2.0` sull'iter 2).
+- CI Woodpecker interna: il workflow corrente è GitHub Actions; un
+  porting su Woodpecker (devbox) è coerente con lo stack ma fuori
+  scope ora.

@@ -14,7 +14,13 @@ from rich.table import Table
 from .backends import all_backend_statuses, select_backend
 from .brief import render_brief, write_brief
 from .config import MinionConfig, config_path, load_config, minion_dir, save_config
-from .manifest import BackendAvailability, Manifest, load_manifest, save_manifest
+from .manifest import (
+    BackendAvailability,
+    Manifest,
+    build_manifest,
+    load_manifest,
+    save_manifest,
+)
 from .repo import find_repo_root, gather_repo_info
 from .reviewer import select_reviewer
 from .teacher import select_teacher
@@ -72,14 +78,30 @@ def init(
     if not plan_md.exists() or force:
         plan_md.write_text(_load_template("teacher-plan.md.tmpl"), encoding="utf-8")
 
-    # Manifest
+    # Manifest: preserve initialized_at across re-runs unless --force
+    existing = load_manifest(root)
+    if existing and existing.initialized_at and not force:
+        initialized_at = existing.initialized_at
+    else:
+        initialized_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    manifest = _refresh_manifest(root, cfg, initialized_at)
+
+    console.print(f"[green]Initialized[/green] minion in [bold]{mdir}[/bold]")
+    console.print(f"  config:    {cfg_path.relative_to(root)}")
+    console.print(f"  manifest:  {(mdir / 'state' / 'manifest.json').relative_to(root)}")
+    console.print(f"  selected backend: [cyan]{manifest.selected_backend}[/cyan]")
+    if manifest.stack:
+        console.print(f"  detected stack: {', '.join(manifest.stack)}")
+    else:
+        console.print("  detected stack: [yellow]unknown[/yellow]")
+
+
+def _refresh_manifest(root: Path, cfg: MinionConfig, initialized_at: str) -> Manifest:
     info = gather_repo_info(root)
     statuses = all_backend_statuses(root, cfg)
     selected = select_backend(root, cfg).name
-
-    manifest = Manifest(
-        initialized_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        repo_root=str(root),
+    manifest = build_manifest(
+        repo_root=root,
         git_branch=info.git.branch,
         git_head=info.git.head,
         git_remote=info.git.remote,
@@ -94,17 +116,38 @@ def init(
             for s in statuses
         ],
         selected_backend=selected,
+        initialized_at=initialized_at,
     )
     save_manifest(root, manifest)
+    return manifest
 
-    console.print(f"[green]Initialized[/green] minion in [bold]{mdir}[/bold]")
-    console.print(f"  config:    {cfg_path.relative_to(root)}")
-    console.print(f"  manifest:  {(mdir / 'state' / 'manifest.json').relative_to(root)}")
-    console.print(f"  selected backend: [cyan]{selected}[/cyan]")
-    if info.stack:
-        console.print(f"  detected stack: {', '.join(info.stack)}")
-    else:
-        console.print("  detected stack: [yellow]unknown[/yellow]")
+
+@app.command()
+def update(
+    path: Optional[Path] = typer.Option(None, "--path"),
+) -> None:
+    """Refresh manifest with current git, stack, and backend availability."""
+    root = _resolve_root(path)
+    mdir = minion_dir(root)
+    if not mdir.exists():
+        console.print("[red]No .minion/ found.[/red] Run `minion init` first.")
+        raise typer.Exit(code=1)
+
+    cfg = load_config(root)
+    existing = load_manifest(root)
+    initialized_at = (
+        existing.initialized_at
+        if existing and existing.initialized_at
+        else datetime.now(timezone.utc).isoformat(timespec="seconds")
+    )
+    manifest = _refresh_manifest(root, cfg, initialized_at)
+
+    console.print(f"[green]Manifest updated[/green]: {(mdir / 'state' / 'manifest.json').relative_to(root)}")
+    console.print(f"  selected backend: [cyan]{manifest.selected_backend}[/cyan]")
+    console.print(f"  stack: {', '.join(manifest.stack) or 'unknown'}")
+    console.print(f"  git branch: {manifest.git_branch or '-'}")
+    console.print(f"  initialized at (preserved): {manifest.initialized_at}")
+    console.print(f"  last updated: {manifest.last_updated_at}")
 
 
 @app.command()

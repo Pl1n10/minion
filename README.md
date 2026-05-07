@@ -35,6 +35,7 @@ Requires Python 3.12+.
 
 ```bash
 minion init                         # set up .minion/ in the current repo
+minion update                       # refresh manifest (git, stack, backends)
 minion status                       # show detected stack + backend availability
 minion brief "add JWT auth flow"    # generate a markdown brief for a task
 ```
@@ -88,11 +89,23 @@ A brief is a single markdown file under `.minion/briefs/`. It includes:
 - the task as you wrote it
 - repo snapshot (root, branch, head, detected stack)
 - a heuristic-ranked list of likely relevant files
+- short snippets of the top-ranked files (size-bounded, UTF-8 only)
 - a Teacher plan section (placeholder until a real provider is wired)
 
-Heuristics are deliberately simple in the MVP: token-in-path matching,
-source-file boost, entry-point boost, large-file penalty. Tune in
-`src/minion/brief.py`.
+Heuristics in the MVP: token-in-path matching, token-in-content matching
+(capped per file), source-file boost, entry-point boost, large-file
+penalty. Files are sorted deterministically before ranking. Tune
+weights and limits in `src/minion/brief.py` and the `brief.*` block of
+`.minion/config.yaml`:
+
+```yaml
+brief:
+  max_files: 25            # ranked entries shown
+  max_file_bytes: 200000   # skip files bigger than this for content scan/snippets
+  max_snippet_files: 5     # how many top files get a snippet
+  max_snippet_lines: 40    # lines per snippet
+  ignore_globs: [...]      # never indexed (includes .minion/**)
+```
 
 ## Development
 

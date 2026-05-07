@@ -75,3 +75,26 @@ def save_manifest(repo_root: Path, manifest: Manifest) -> Path:
     with path.open("w", encoding="utf-8") as fh:
         json.dump(manifest.to_dict(), fh, indent=2, sort_keys=False)
     return path
+
+
+def build_manifest(
+    repo_root: Path,
+    git_branch: str | None,
+    git_head: str | None,
+    git_remote: str | None,
+    stack: list[str],
+    backends: list[BackendAvailability],
+    selected_backend: str,
+    initialized_at: str,
+) -> Manifest:
+    """Construct a Manifest from current state, preserving the original init time."""
+    return Manifest(
+        initialized_at=initialized_at,
+        repo_root=str(repo_root),
+        git_branch=git_branch,
+        git_head=git_head,
+        git_remote=git_remote,
+        stack=stack,
+        backends=backends,
+        selected_backend=selected_backend,
+    )
