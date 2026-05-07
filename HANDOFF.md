@@ -4,9 +4,11 @@ Stato al 2026-05-07.
 
 ## Stato git
 
-- Branch: `main` (default uv init)
-- Ultimo commit: pending — primo commit MVP da fare
-- Working tree: dirty (intero scaffold da committare)
+- Branch: `main`
+- Ultimo commit: `7dfb46a` — chore: initial MVP scaffold for Minion
+- Working tree: clean (eccetto eventuali aggiornamenti a HANDOFF.md)
+- Identità locale: `Pl1n10 <robnovara@gmail.com>`
+- Remote: nessuno (da creare su GitHub come `git@github.com:Pl1n10/minion.git`)
 
 ## Goal corrente
 
@@ -27,14 +29,15 @@ con backend filesystem solido e Repowise come detection opzionale.
 
 ## Step in corso
 
-Primo commit MVP. Il repo è già un git repo (creato da `uv init`) ma
-nulla è stato committato.
+Nessuno. MVP completo, primo commit fatto.
 
 ## Step pending
 
-1. `git add` + primo commit MVP.
-2. (Opzionale) tag `v0.1.0-mvp`.
-3. Decidere se pubblicare su Gitea/GitHub e con quale nome.
+1. Creare il repo GitHub `Pl1n10/minion` (via UI o `gh repo create`).
+2. `git remote add origin git@github.com:Pl1n10/minion.git` e `git push -u origin main`.
+3. (Opzionale) tag `v0.1.0-mvp` dopo il primo push.
+4. (Follow-up) wrap reale di Repowise via `subprocess` quando il
+   progetto Repowise OSS è chiarito.
 
 ## Decisioni di design non ovvie
 
