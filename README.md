@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/minion-banner.png" alt="Minion banner" width="100%">
+  <img src="./assets/1733384418343.jpeg" alt="Minion banner" width="100%">
 </p>
 
 # Minion
