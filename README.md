@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./assets/minion-banner.png" alt="Minion banner" width="100%">
+</p>
+
 # Minion
 
 > Local-first **repo intelligence coprocessor** for AI coding agents.
