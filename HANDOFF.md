@@ -1,6 +1,6 @@
 # HANDOFF.md — Minion
 
-Stato al 2026-05-14 (iterazione 4 chiusa).
+Stato al 2026-05-14 (iterazione 5 chiusa).
 
 ## Stato git
 
@@ -100,14 +100,38 @@ Iter 4 in due commit:
     nuovi (discovery + render). Totale: **46 test verdi**, ruff clean.
     Smoke test E2E: `minion teach` su repo fresco mostra la sezione
     Playbooks con `git-setup` correttamente listato.
+24. Commit `4b4c3d3` + tag `v0.4.0`.
+
+### Iterazione 4.1 — pulizia upload accidentali (chiusa)
+
+25. Rimossi via `git rm` i due file caricati per sbaglio via GitHub web
+    UI durante l'inserimento del banner README: `b80eacfb-...png` nella
+    root (duplicato del banner ufficiale in `assets/`) e `assets/minion`
+    (1 byte). Commit `d309ae7`.
+
+### Iterazione 5 — playbook path nei bullet (chiusa)
+
+26. **Gap identificato**: la sezione `## Available playbooks` in
+    `MINION.md` elencava nome + descrizione ma non indicava DOVE leggere
+    il contenuto. Agenti non-Claude (Cursor/Codex/Aider), che non
+    leggono `~/.claude/CLAUDE.md`, restavano senza coordinate.
+27. **Fix**: aggiunto campo `path: str` a `PlaybookEntry`, popolato in
+    `_discover_playbooks` con `str(entry)` del Traversable. Bullet ora
+    rende anche \`Path: \`<full-path-to-.md.tmpl>\`\`. Aggiunta nota nella
+    sezione: se esiste una versione operatore in `<minion-checkout>/playbooks/<name>.md`,
+    preferirla per i parametri risolti.
+28. Test esteso: `test_gather_pack_discovers_builtin_playbooks` verifica
+    `path.endswith("git-setup.md.tmpl")`. `test_render_minion_md_lists_playbooks`
+    verifica che `git-setup.md.tmpl` compaia nel rendered. **46 test
+    verdi**, ruff clean. Smoke E2E confermato.
 
 ## Step in corso
 
-Iter 4 chiusa.
+Iter 5 chiusa.
 
 ## Step pending
 
-1. (Opzionale) tag `v0.4.0` a chiusura iter 4.
+1. (Opzionale) tag `v0.5.0` a chiusura iter 5.
 2. (Follow-up) wrap reale di Repowise via `subprocess` quando il
    progetto Repowise OSS è chiarito.
 3. (Idea) aggiungere a `teach` parsing di `[project.scripts]`/
@@ -115,11 +139,6 @@ Iter 4 chiusa.
 4. (Idea) playbook aggiuntivi: `python-venv-setup`, `pre-commit-setup`,
    `github-actions-ci`. Solo template generici, personalizzazione locale
    se ha senso.
-5. (Pulizia, non bloccante) sul remoto ci sono due file probabilmente
-   accidentali caricati via web UI: `b80eacfb-...png` duplicato nella
-   root del repo (l'originale ufficiale è in `assets/`) e `assets/minion`
-   da 1 byte. Da rimuovere con un commit di pulizia separato se
-   confermato.
 
 ## Decisioni di design non ovvie
 

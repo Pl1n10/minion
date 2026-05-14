@@ -62,6 +62,7 @@ DOC_NAME_PREFIXES = (
 class PlaybookEntry:
     name: str
     description: str
+    path: str
 
 
 @dataclass
@@ -227,7 +228,13 @@ def _discover_playbooks() -> list[PlaybookEntry]:
             text = entry.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        out.append(PlaybookEntry(name=slug, description=_extract_playbook_description(text)))
+        out.append(
+            PlaybookEntry(
+                name=slug,
+                description=_extract_playbook_description(text),
+                path=str(entry),
+            )
+        )
     return sorted(out, key=lambda p: p.name)
 
 
@@ -298,7 +305,9 @@ def _bullet_list(items: list[str], empty: str = "_(none detected)_") -> str:
 def _playbook_bullets(items: list[PlaybookEntry]) -> str:
     if not items:
         return "_(none bundled)_"
-    return "\n".join(f"- **{p.name}** — {p.description}" for p in items)
+    return "\n".join(
+        f"- **{p.name}** — {p.description} Path: `{p.path}`" for p in items
+    )
 
 
 def render_minion_md(pack: KnowledgePack, user_notes: str) -> str:
@@ -359,6 +368,9 @@ def render_minion_md(pack: KnowledgePack, user_notes: str) -> str:
         "",
         "Prescriptive markdown for repetitive setup actions, bundled with Minion.",
         "Read the relevant one **before** doing the task — Minion does not execute them.",
+        "If an operator-specific resolved copy exists (e.g. under",
+        "`<minion-checkout>/playbooks/<name>.md`), prefer it: it has parameter",
+        "values pre-filled for that operator.",
         "",
         _playbook_bullets(pack.playbooks),
         "",

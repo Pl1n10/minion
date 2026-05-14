@@ -90,6 +90,9 @@ def test_gather_pack_discovers_builtin_playbooks(tmp_repo: Path) -> None:
     assert "git-setup" in names, f"git-setup playbook missing, got {names}"
     git_setup = next(p for p in pack.playbooks if p.name == "git-setup")
     assert git_setup.description, "git-setup playbook should have a description"
+    assert git_setup.path.endswith("git-setup.md.tmpl"), (
+        f"playbook path should point at the .tmpl file, got {git_setup.path!r}"
+    )
 
 
 def test_render_minion_md_lists_playbooks(tmp_repo: Path) -> None:
@@ -101,6 +104,7 @@ def test_render_minion_md_lists_playbooks(tmp_repo: Path) -> None:
 
     assert "## Available playbooks" in md
     assert "**git-setup**" in md
+    assert "git-setup.md.tmpl" in md, "rendered section should expose the playbook path"
 
 
 def test_render_minion_md_contains_all_sections(tmp_repo: Path) -> None:
