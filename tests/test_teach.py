@@ -80,6 +80,29 @@ def test_gather_pack_finds_tests_and_entrypoints(tmp_path: Path) -> None:
     assert "tests/test_thing.py" not in pack.config_files
 
 
+def test_gather_pack_discovers_builtin_playbooks(tmp_repo: Path) -> None:
+    cfg = MinionConfig()
+    fs = FilesystemBackend(tmp_repo, ignore_globs=cfg.brief.ignore_globs)
+    info = gather_repo_info(tmp_repo)
+    pack = gather_pack(tmp_repo, info, fs.list_files(), cfg)
+
+    names = [p.name for p in pack.playbooks]
+    assert "git-setup" in names, f"git-setup playbook missing, got {names}"
+    git_setup = next(p for p in pack.playbooks if p.name == "git-setup")
+    assert git_setup.description, "git-setup playbook should have a description"
+
+
+def test_render_minion_md_lists_playbooks(tmp_repo: Path) -> None:
+    cfg = MinionConfig()
+    fs = FilesystemBackend(tmp_repo, ignore_globs=cfg.brief.ignore_globs)
+    info = gather_repo_info(tmp_repo)
+    pack = gather_pack(tmp_repo, info, fs.list_files(), cfg)
+    md = render_minion_md(pack, "_notes_")
+
+    assert "## Available playbooks" in md
+    assert "**git-setup**" in md
+
+
 def test_render_minion_md_contains_all_sections(tmp_repo: Path) -> None:
     cfg = MinionConfig()
     fs = FilesystemBackend(tmp_repo, ignore_globs=cfg.brief.ignore_globs)
@@ -96,6 +119,7 @@ def test_render_minion_md_contains_all_sections(tmp_repo: Path) -> None:
         "## Documentation files",
         "## Suggested first files to inspect",
         "## Do-not-index / ignored paths",
+        "## Available playbooks",
     ):
         assert section in md, f"missing {section}"
     assert USER_NOTES_START in md

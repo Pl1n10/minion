@@ -1,6 +1,6 @@
 # HANDOFF.md — Minion
 
-Stato al 2026-05-14 (iterazione 4 in corso).
+Stato al 2026-05-14 (iterazione 4 chiusa).
 
 ## Stato git
 
@@ -93,25 +93,33 @@ Iter 4 in due commit:
 22. Primo playbook: `git-setup`. Generico in
     `src/minion/templates/playbooks/git-setup.md.tmpl`. Versione
     personale (Roberto) in `playbooks/git-setup.md`.
+23. `teach.py` esteso: `PlaybookEntry` dataclass, `_discover_playbooks()`
+    via `importlib.resources.files`, `_extract_playbook_description()`
+    che pesca la prima frase del blockquote in cima al `.tmpl`, sezione
+    `## Available playbooks` aggiunta a `render_minion_md`. Due test
+    nuovi (discovery + render). Totale: **46 test verdi**, ruff clean.
+    Smoke test E2E: `minion teach` su repo fresco mostra la sezione
+    Playbooks con `git-setup` correttamente listato.
 
 ## Step in corso
 
-Commit 2 iter 4: estendere `teach.py` per scoprire i `.tmpl` sotto
-`src/minion/templates/playbooks/` (via `importlib.resources`) e
-renderizzare una sezione `## Playbooks` in `MINION.md`. Test +
-ruff verde.
+Iter 4 chiusa.
 
 ## Step pending
 
-1. Commit 2 iter 4 (teach.py integration + test).
-2. (Opzionale) tag `v0.4.0` a chiusura iter 4.
-3. (Follow-up) wrap reale di Repowise via `subprocess` quando il
+1. (Opzionale) tag `v0.4.0` a chiusura iter 4.
+2. (Follow-up) wrap reale di Repowise via `subprocess` quando il
    progetto Repowise OSS è chiarito.
-4. (Idea) aggiungere a `teach` parsing di `[project.scripts]`/
+3. (Idea) aggiungere a `teach` parsing di `[project.scripts]`/
    `bin` per scoprire entrypoints dichiarati e non solo per filename.
-5. (Idea) playbook aggiuntivi: `python-venv-setup`, `pre-commit-setup`,
+4. (Idea) playbook aggiuntivi: `python-venv-setup`, `pre-commit-setup`,
    `github-actions-ci`. Solo template generici, personalizzazione locale
    se ha senso.
+5. (Pulizia, non bloccante) sul remoto ci sono due file probabilmente
+   accidentali caricati via web UI: `b80eacfb-...png` duplicato nella
+   root del repo (l'originale ufficiale è in `assets/`) e `assets/minion`
+   da 1 byte. Da rimuovere con un commit di pulizia separato se
+   confermato.
 
 ## Decisioni di design non ovvie
 

@@ -11,6 +11,7 @@ import json
 import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from importlib.resources import files as resource_files
 from pathlib import Path
 
 from .backends.base import FileEntry
@@ -57,6 +58,12 @@ DOC_NAME_PREFIXES = (
 )
 
 
+@dataclass(frozen=True)
+class PlaybookEntry:
+    name: str
+    description: str
+
+
 @dataclass
 class KnowledgePack:
     project_name: str
@@ -68,6 +75,7 @@ class KnowledgePack:
     doc_files: list[str] = field(default_factory=list)
     suggested_first_files: list[str] = field(default_factory=list)
     ignored_globs: list[str] = field(default_factory=list)
+    playbooks: list[PlaybookEntry] = field(default_factory=list)
     file_count: int = 0
     taught_at: str = ""
 
@@ -188,6 +196,41 @@ def _suggest_first_files(
     return out
 
 
+def _extract_playbook_description(text: str) -> str:
+    """First sentence of the leading blockquote, used as a short description."""
+    quote_lines: list[str] = []
+    in_quote = False
+    for line in text.splitlines():
+        if line.startswith(">"):
+            in_quote = True
+            quote_lines.append(line.lstrip(">").strip())
+        elif in_quote:
+            break
+    joined = " ".join(q for q in quote_lines if q)
+    if not joined:
+        return ""
+    first = joined.split(". ", 1)[0].rstrip(".")
+    return first + "."
+
+
+def _discover_playbooks() -> list[PlaybookEntry]:
+    """Enumerate built-in playbook templates bundled with the package."""
+    root = resource_files("minion") / "templates" / "playbooks"
+    if not root.is_dir():
+        return []
+    out: list[PlaybookEntry] = []
+    for entry in root.iterdir():
+        if not entry.name.endswith(".md.tmpl"):
+            continue
+        slug = entry.name.removesuffix(".md.tmpl")
+        try:
+            text = entry.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        out.append(PlaybookEntry(name=slug, description=_extract_playbook_description(text)))
+    return sorted(out, key=lambda p: p.name)
+
+
 def gather_pack(
     root: Path,
     repo_info: RepoInfo,
@@ -229,6 +272,7 @@ def gather_pack(
         doc_files=doc_files,
         suggested_first_files=_suggest_first_files(entrypoints, config_files, doc_files),
         ignored_globs=list(cfg.brief.ignore_globs),
+        playbooks=_discover_playbooks(),
         file_count=len(files),
         taught_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
     )
@@ -249,6 +293,12 @@ def _bullet_list(items: list[str], empty: str = "_(none detected)_") -> str:
     if not items:
         return empty
     return "\n".join(f"- `{item}`" for item in items)
+
+
+def _playbook_bullets(items: list[PlaybookEntry]) -> str:
+    if not items:
+        return "_(none bundled)_"
+    return "\n".join(f"- **{p.name}** — {p.description}" for p in items)
 
 
 def render_minion_md(pack: KnowledgePack, user_notes: str) -> str:
@@ -304,6 +354,13 @@ def render_minion_md(pack: KnowledgePack, user_notes: str) -> str:
         "## Do-not-index / ignored paths",
         "",
         _bullet_list(pack.ignored_globs, empty="_(none)_"),
+        "",
+        "## Available playbooks",
+        "",
+        "Prescriptive markdown for repetitive setup actions, bundled with Minion.",
+        "Read the relevant one **before** doing the task — Minion does not execute them.",
+        "",
+        _playbook_bullets(pack.playbooks),
         "",
         "---",
         "",
