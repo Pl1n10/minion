@@ -37,6 +37,12 @@ place to create remote repos or generate keys.
 3. Confirm `.gitignore` exists and excludes `.venv/`, `__pycache__/`,
    `.env`, build artifacts, and any project-specific secrets / local
    config files. If missing or thin, fix it first.
+   If the project uses Minion (a `.minion/` directory is present),
+   also exclude `.minion/state/` and `.minion/briefs/` — they hold
+   volatile timestamps and ephemeral, often personal briefs that
+   should not live in git history. Keep `.minion/MINION.md`,
+   `.minion/config.yaml`, and `.minion/teacher-plan.md` tracked:
+   they're durable knowledge / config worth versioning.
 4. Confirm SSH to the remote works:
    `ssh -T git@github.com` (or the matching host). Expected: a greeting
    that names the authenticated user. If it fails, stop.

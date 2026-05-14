@@ -1,6 +1,6 @@
 # HANDOFF.md — Minion
 
-Stato al 2026-05-14 (iterazione 5 chiusa).
+Stato al 2026-05-14 (iterazione 6 chiusa).
 
 ## Stato git
 
@@ -125,13 +125,29 @@ Iter 4 in due commit:
     verifica che `git-setup.md.tmpl` compaia nel rendered. **46 test
     verdi**, ruff clean. Smoke E2E confermato.
 
+### Iterazione 6 — convenzione `.gitignore` per Minion (chiusa)
+
+29. **Decisione di costo/beneficio**: cosa di `.minion/` va versionato e
+    cosa no, presa testando Minion su `~/projects/pawpark` (cavia).
+    - Versionati: `MINION.md` (knowledge), `config.yaml` (config),
+      `teacher-plan.md` (piano editabile a mano).
+    - Ignorati: `.minion/state/` (timestamps che cambiano ad ogni
+      `minion update`, churn rumoroso) e `.minion/briefs/` (effimeri
+      e spesso personali — non vanno nello storico condiviso).
+30. Convenzione documentata nel playbook `git-setup` (sia template
+    generico sia versione personale Roberto), nel pre-flight check 3.
+    L'agente che segue il playbook ora include automaticamente le
+    entries giuste nel `.gitignore` del progetto target.
+31. Aggiornata anche `~/projects/pawpark/.gitignore` con il blocco
+    Minion, e rimosso `state/manifest.json` dal repo (`git rm --cached`).
+
 ## Step in corso
 
-Iter 5 chiusa.
+Iter 6 chiusa.
 
 ## Step pending
 
-1. (Opzionale) tag `v0.5.0` a chiusura iter 5.
+1. (Opzionale) tag `v0.6.0` a chiusura iter 6.
 2. (Follow-up) wrap reale di Repowise via `subprocess` quando il
    progetto Repowise OSS è chiarito.
 3. (Idea) aggiungere a `teach` parsing di `[project.scripts]`/
