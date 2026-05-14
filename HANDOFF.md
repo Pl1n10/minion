@@ -1,25 +1,35 @@
 # HANDOFF.md — Minion
 
-Stato al 2026-05-07 (iterazione 3).
+Stato al 2026-05-14 (iterazione 4 in corso).
 
 ## Stato git
 
 - Branch: `main` (su `origin` come `origin/main`)
 - Remote: `git@github.com:Pl1n10/minion.git`
 - Identità locale: `Pl1n10 <robnovara@gmail.com>`
-- Tag remoti: `v0.1.0-mvp` su `7dfb46a`, `v0.2.0` su `a59f395`
+- Tag remoti: `v0.1.0-mvp` su `7dfb46a`, `v0.2.0` su `a59f395`, `v0.3.0` su `f2c8c44`
 - Ultimi commit (vedi `git log --oneline -n 5`):
+  - `f2c8c44` feat: minion teach — auto-populated MINION.md knowledge pack
   - `a59f395` feat: content-aware brief, minion update, GitHub Actions CI
   - `034a97c` docs: update HANDOFF with first commit hash and next steps
   - `7dfb46a` chore: initial MVP scaffold for Minion
-- Working tree: dirty — iter 3 da committare
+- Working tree: in via di modifica per iter 4 (vedi sotto)
 
 ## Goal corrente
 
-Iterazione 3 chiusa: `minion teach` come primo generatore reale di
-knowledge pack. `.minion/MINION.md` ora viene popolata
-automaticamente con sezioni utili e preserva le note utente fra
-rigenerazioni. Repowise resta detection-only e nessuna chiamata LLM.
+Iterazione 4: introdurre il concetto di **playbook** — markdown
+prescrittivo per azioni ripetitive (setup git, init venv, ecc.) che
+Minion serve agli agenti AI ma **non esegue**. Coerente con la hard
+rule "Minion non è un coding agent": i playbook sono context, non
+codice eseguito.
+
+Iter 4 in due commit:
+- **Commit 1**: template generico `src/minion/templates/playbooks/git-setup.md.tmpl`
+  (committed) + versione personale `playbooks/git-setup.md` (gitignored) +
+  `.gitignore` aggiornato. Zero code change.
+- **Commit 2**: `teach.py` esteso per scoprire i `.tmpl` sotto
+  `src/minion/templates/playbooks/` e renderizzare una sezione
+  `## Playbooks` in `MINION.md`. Test + ruff verde.
 
 ## Step completati
 
@@ -51,7 +61,7 @@ rigenerazioni. Repowise resta detection-only e nessuna chiamata LLM.
     pytest su push e PR a `main`.
 13. Tag `v0.2.0` su `a59f395`.
 
-### Iterazione 3 — `minion teach`
+### Iterazione 3 — `minion teach` (chiusa, taggata `v0.3.0` su `f2c8c44`)
 
 14. Nuovo modulo `src/minion/teach.py` con classificatori per
     entrypoints, config, test, doc; estrazione metadata progetto da
@@ -66,20 +76,42 @@ rigenerazioni. Repowise resta detection-only e nessuna chiamata LLM.
     fin dal primo run, così l'utente può scrivere note prima ancora di
     chiamare `teach`.
 18. Test classificatori e CLI: 44 test totali verdi. Ruff: clean.
+19. Commit `f2c8c44` + push su `origin/main`. Tag `v0.3.0` pushato.
+
+### Iterazione 4 — playbooks (in corso)
+
+20. **Concetto**: un playbook è un file markdown prescrittivo per
+    un'azione ripetitiva (setup git, init venv, scaffold modulo).
+    Minion lo serve agli agenti AI come parte del knowledge pack
+    — **non lo esegue**. Coerente con la hard rule "Minion non è un
+    coding agent".
+21. **Layout**: i template generici (con placeholders `{{...}}`) vivono
+    in `src/minion/templates/playbooks/*.md.tmpl` e sono distribuiti
+    col package. Le versioni personali risolte (con identità git
+    dell'operatore, URL remoti, ecc.) vivono in `/playbooks/*.md`
+    nella root del repo e sono **gitignored** — non distribuibili.
+22. Primo playbook: `git-setup`. Generico in
+    `src/minion/templates/playbooks/git-setup.md.tmpl`. Versione
+    personale (Roberto) in `playbooks/git-setup.md`.
 
 ## Step in corso
 
-Commit unico iterazione 3 + push.
+Commit 2 iter 4: estendere `teach.py` per scoprire i `.tmpl` sotto
+`src/minion/templates/playbooks/` (via `importlib.resources`) e
+renderizzare una sezione `## Playbooks` in `MINION.md`. Test +
+ruff verde.
 
 ## Step pending
 
-1. Push commit iter 3 su `origin/main`.
-2. (Opzionale) tag `v0.3.0` per il salto "MINION.md auto-popolata".
-3. Verificare run CI sul commit iter 3.
-4. (Follow-up) wrap reale di Repowise via `subprocess` quando il
+1. Commit 2 iter 4 (teach.py integration + test).
+2. (Opzionale) tag `v0.4.0` a chiusura iter 4.
+3. (Follow-up) wrap reale di Repowise via `subprocess` quando il
    progetto Repowise OSS è chiarito.
-5. (Idea) aggiungere a `teach` parsing di `[project.scripts]`/
+4. (Idea) aggiungere a `teach` parsing di `[project.scripts]`/
    `bin` per scoprire entrypoints dichiarati e non solo per filename.
+5. (Idea) playbook aggiuntivi: `python-venv-setup`, `pre-commit-setup`,
+   `github-actions-ci`. Solo template generici, personalizzazione locale
+   se ha senso.
 
 ## Decisioni di design non ovvie
 
@@ -119,6 +151,12 @@ Commit unico iterazione 3 + push.
   Test dedicato lo presidia.
 - **Teacher/Reviewer minimi di proposito**: solo interfacce + noop.
   Aggiungere prompt engineering qui sarebbe scope creep MVP.
+- **Playbook system (iter 4) — Minion non li esegue**: i playbook sono
+  markdown prescrittivi, serviti agli agenti AI come context. Aggiungere
+  un `minion run-playbook <name>` violerebbe la hard rule "Minion non è
+  un coding agent". Il template generico è committato; la versione
+  parametrizzata col git identity dell'operatore è gitignored
+  (`/playbooks/`) — i parametri personali non finiscono mai su origin.
 
 ## Workflow concordato con l'utente
 

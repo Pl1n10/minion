@@ -1,0 +1,135 @@
+# Playbook: git-setup
+
+> Bootstrap a freshly scaffolded project as a git repository and push it
+> to its remote for the first time. Generic template — replace the
+> `{{PLACEHOLDERS}}` with the values for the operator running it, or
+> resolve them from the user's global CLAUDE.md.
+
+## When to use
+
+- A project directory exists locally with files but is **not yet a git
+  repo** (`git status` returns "not a git repository").
+- A matching remote repo has already been created on the hosting
+  provider (GitHub / Gitea / GitLab) and its URL is known.
+- The SSH key is already on the operator's machine and registered with
+  the hosting provider (verify with `ssh -T git@<host>`).
+
+If any of these is missing, **stop and ask** — this playbook is not the
+place to create remote repos or generate keys.
+
+## Parameters
+
+| Name | Example | Resolved from |
+|---|---|---|
+| `{{USER_NAME}}` | `Jane Doe` | global CLAUDE.md or operator prompt |
+| `{{USER_EMAIL}}` | `jane@example.com` | global CLAUDE.md or operator prompt |
+| `{{DEFAULT_BRANCH}}` | `main` | convention (default `main`) |
+| `{{REMOTE_URL}}` | `git@github.com:<user>/<repo>.git` | operator prompt |
+| `{{COMMIT_MSG_LANG}}` | `en` / `it` | operator preference |
+| `{{COAUTHOR_LINE}}` | `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>` or empty | operator preference |
+
+## Pre-flight checks (do these first, do not skip)
+
+1. Confirm you are inside the project directory: `pwd` and `ls`.
+2. Confirm it is **not** already a git repo: `git status` should fail
+   with "not a git repository". If it succeeds, this playbook is not
+   the right one — stop.
+3. Confirm `.gitignore` exists and excludes `.venv/`, `__pycache__/`,
+   `.env`, build artifacts, and any project-specific secrets / local
+   config files. If missing or thin, fix it first.
+4. Confirm SSH to the remote works:
+   `ssh -T git@github.com` (or the matching host). Expected: a greeting
+   that names the authenticated user. If it fails, stop.
+
+## Steps
+
+### 1. Configure global git identity (one-time, skip if already set)
+
+```bash
+git config --global --list | grep -E '^user\.(name|email)='
+```
+
+If output is empty:
+
+```bash
+git config --global user.name "{{USER_NAME}}"
+git config --global user.email "{{USER_EMAIL}}"
+git config --global init.defaultBranch {{DEFAULT_BRANCH}}
+```
+
+### 2. Initialise the repo
+
+```bash
+git init
+git status
+```
+
+The status output should list every project file as untracked. Spot
+check that no sensitive files (`.env`, credentials, `.venv/`, build
+artifacts) appear — if they do, fix `.gitignore` before staging.
+
+### 3. Stage and commit
+
+```bash
+git add .
+git status --short
+```
+
+Eyeball the staged list. Then create the initial commit. Use a HEREDOC
+for the message so multi-line content renders correctly:
+
+```bash
+git commit -m "$(cat <<'EOF'
+<one-line summary in {{COMMIT_MSG_LANG}}>
+
+<optional body: what's in the scaffold, what's stubbed, what tests
+already pass — keep it factual, no marketing>
+
+{{COAUTHOR_LINE}}
+EOF
+)"
+```
+
+If `{{COAUTHOR_LINE}}` is empty, omit the trailing line entirely (no
+blank line before `EOF`).
+
+### 4. Wire up the remote and push
+
+```bash
+git remote add origin {{REMOTE_URL}}
+git remote -v
+git push -u origin {{DEFAULT_BRANCH}}
+```
+
+The `-u` flag sets the upstream so subsequent `git push` / `git pull`
+work without arguments.
+
+### 5. Verify
+
+- Open the remote in the browser; the initial commit should be visible.
+- `git log --oneline -n 1` locally should match the remote head.
+- `git status` should report `Your branch is up to date with 'origin/{{DEFAULT_BRANCH}}'`.
+
+## Common pitfalls
+
+- **Repo name typo on the remote**: rename on the hosting provider
+  before pushing, then update `origin` with
+  `git remote set-url origin <correct-url>`.
+- **Commits not "Verified" on GitHub**: the commit email must be
+  registered (even as secondary) on the GitHub account.
+  https://github.com/settings/emails
+- **Working tree contains an unrelated nested zip or backup**: decide
+  before commit whether it stays (gitignored), is deleted, or moves
+  out. Do not commit binary backups by accident.
+- **Outer-dir nesting**: if the project lives one level below the
+  intended repo root (e.g. `outer/project-name/project-name/`), run
+  `git init` inside the inner directory, not the outer.
+
+## What this playbook does NOT do
+
+- Does **not** create the remote repo. Use the provider's UI / CLI.
+- Does **not** generate or register SSH keys.
+- Does **not** push tags, releases, branches other than the default.
+- Does **not** configure CI, branch protection, secrets, or webhooks.
+
+Each of those belongs in a separate playbook.

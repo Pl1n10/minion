@@ -8,3 +8,8 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Personal playbooks (operator-specific git identity, remote URLs, etc.).
+# The generic, parametrized templates live in src/minion/templates/playbooks/
+# and ARE committed. Only the top-level /playbooks/ directory is local-only.
+/playbooks/
