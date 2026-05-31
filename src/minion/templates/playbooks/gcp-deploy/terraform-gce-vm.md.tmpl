@@ -47,8 +47,10 @@ terraform plan -var project_id={{PROJECT_ID}}
 ```
 
 Read the plan: expect one VPC, one subnet, one service account, one
-instance, (optionally) one budget. No firewall *allow* rules — that is
-intentional (no public ingress).
+instance, one IAM binding (the SA's `roles/logging.logWriter`, for the
+`gcplogs` log driver — see the `logging` playbook), (optionally) one
+budget. No firewall *allow* rules — that is intentional (no public
+ingress).
 
 ### 3. Apply
 

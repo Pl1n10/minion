@@ -150,9 +150,10 @@ Iter 4 in due commit:
     (panoramica + tabella d'ordine + razionale architetturale) e 7
     `.md.tmpl`: `gcp-project-bootstrap`, `terraform-gce-vm`,
     `tailscale-join-vm`, `ghcr-publish`, `cloudflare-tunnel`,
-    `vm-provision-ansible`, `oauth-prod-wiring`. Stessa anatomia di
-    `git-setup` (When to use / Parameters / Pre-flight / Steps / Verify /
-    Pitfalls / Does NOT do).
+    `vm-provision-ansible`, `oauth-prod-wiring`, + `logging` (8 in tutto,
+    aggiunto `logging` per Cloud Logging via driver `gcplogs`). Stessa
+    anatomia di `git-setup` (When to use / Parameters / Pre-flight /
+    Steps / Verify / Pitfalls / Does NOT do).
 33. **Modello "codice-nel-repo + playbook-spiega"**: il codice IaC
     concreto (Terraform + Ansible) vive in `toto-mondiale/infra/`, NON in
     minion. I playbook minion sono runbook generici parametrici che lo

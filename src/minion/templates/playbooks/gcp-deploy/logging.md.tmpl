@@ -1,0 +1,106 @@
+# Playbook: logging
+
+> Ship a containerized app's logs off a small GCE VM so they are readable
+> from the control plane (devbox) and survive a VM rebuild, without a
+> heavy logging agent. Generic template — replace the `{{PLACEHOLDERS}}`.
+
+## When to use
+
+- The app runs as Docker containers on a small GCE VM (e.g. e2-micro).
+- You want durable, queryable logs read from the devbox, and an agent
+  like the Ops Agent is too heavy for the VM's RAM.
+
+## Approach
+
+Container `stdout/stderr` go to **Cloud Logging via the Docker `gcplogs`
+driver** — no agent, ~0 RAM. The VM's service account needs
+`roles/logging.logWriter`. System logs (journald) stay on the box and are
+pulled on demand over Tailscale SSH. A devbox helper wraps both.
+
+## Parameters
+
+| Name | Example | Resolved from |
+|---|---|---|
+| `{{PROJECT_ID}}` | `toto-mondiale` | gcp-project-bootstrap |
+| `{{SA_EMAIL}}` | `toto-mondiale-vm@...` | terraform-gce-vm output |
+| `{{LOG_DRIVER}}` | `gcplogs` | this playbook (json-file off-GCE) |
+
+## Pre-flight checks (do these first, do not skip)
+
+1. Cloud Logging API enabled: `gcloud services list --enabled | grep logging`.
+   (Enable in `gcp-project-bootstrap`: `logging.googleapis.com`.)
+2. The VM service account has `roles/logging.logWriter` (granted in
+   `terraform-gce-vm` via `google_project_iam_member`).
+3. The VM has internet egress (it does — egress is open; ingress is not).
+
+## Steps
+
+### 1. Enable gcplogs on the containers
+
+In the compose file, give each service a logging block:
+
+```yaml
+logging:
+  driver: {{LOG_DRIVER}}
+  options:
+    labels: com.docker.compose.service,com.docker.compose.project
+```
+
+On a non-GCE target, set the driver to `json-file` with
+`max-size`/`max-file` rotation instead. (Templated by the Ansible `app`
+role as `app_log_driver`.)
+
+### 2. Recreate the stack so the driver takes effect
+
+The log driver is fixed at container creation — recreate, do not just
+restart:
+
+```bash
+ansible-playbook site.yml --tags app   # the app role recreates on change
+```
+
+### 3. Read from the devbox
+
+Use the helper (`infra/scripts/tlogs`):
+
+```bash
+tlogs app            # last cloud entries for the app container
+tlogs all 200        # all containers, 200 lines
+tlogs live           # real-time tail over Tailscale SSH
+tlogs sys            # journald over Tailscale SSH
+```
+
+Or raw gcloud:
+
+```bash
+gcloud logging read \
+  'logName="projects/{{PROJECT_ID}}/logs/gcplogs-docker-driver"' \
+  --project={{PROJECT_ID}} --limit=100 --freshness=1d --order=asc
+```
+
+## Verify
+
+- After a request to the app, `tlogs app` shows the access/log lines
+  within a few seconds.
+- `gcloud logging read` returns entries with
+  `jsonPayload.container.name` set to the compose container.
+- Tearing down and recreating the VM does **not** lose past logs (they
+  are in Cloud Logging, not on the disk).
+
+## Common pitfalls
+
+- **Driver changed but logs still local**: the driver is set at container
+  creation. A bare `restart` keeps the old driver — recreate.
+- **401 / permission denied writing logs**: the service account is
+  missing `roles/logging.logWriter`, or the API is not enabled.
+- **`tlogs app` empty but `all` shows lines**: the per-service filter
+  matches the container name substring (`-app-`). If you renamed the
+  compose service, adjust the filter / `svc_filter` in the helper.
+- **Cost surprise**: Cloud Logging has a free monthly ingest allotment;
+  a hobby app is well within it. Keep the budget alert on regardless.
+
+## What this playbook does NOT do
+
+- Does **not** install the Ops Agent (intentional; too heavy for 1 GB).
+- Does **not** ship system/journald logs to the cloud (pulled on demand).
+- Does **not** set up dashboards/alerting (separate concern).

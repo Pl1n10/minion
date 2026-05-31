@@ -55,11 +55,14 @@ No service-account key file is created or committed.
 gcloud services enable \
   compute.googleapis.com \
   iam.googleapis.com \
+  logging.googleapis.com \
   cloudbilling.googleapis.com \
   billingbudgets.googleapis.com
 ```
 
-(`billingbudgets` only if you want the budget alert resource.)
+(`billingbudgets` only if you want the budget alert resource;
+`logging` is needed for the `gcplogs` log driver — see the `logging`
+playbook.)
 
 ### 4. Create the GCS bucket for Terraform state
 

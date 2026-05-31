@@ -46,9 +46,12 @@ small GCP VM (e.g. e2-micro Always Free, US region)
 | 5 | `cloudflare-tunnel.md` | create the tunnel, get the token | console |
 | 6 | `vm-provision-ansible.md` | hardening + docker + app deploy + watchtower | devbox (ansible) |
 | 7 | `oauth-prod-wiring.md` | add prod redirect URI / origin to the OAuth client | console |
+| + | `logging.md` | container logs -> Cloud Logging (gcplogs), read from devbox | cross-cutting |
 
 Steps 1–2 stand up the box; 4–5 produce the image and the ingress token;
-6 ties them together on the VM; 3 and 7 are verify/wire steps.
+6 ties them together on the VM; 3 and 7 are verify/wire steps. `logging`
+is cross-cutting: its IAM role is granted in step 2 and its API enabled in
+step 1, but it is configured by the app role in step 6 and read afterwards.
 
 ## What this family does NOT do
 
