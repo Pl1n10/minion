@@ -1,0 +1,77 @@
+# Playbook: ghcr-publish
+
+> Build a container image on the devbox and push it to a private registry
+> (GitHub Container Registry) so a small VM can pull a ready image instead
+> of building (which would OOM a 1 GB box). Generic template — replace the
+> `{{PLACEHOLDERS}}`.
+
+## When to use
+
+- The app has a working `Dockerfile` and builds locally on the devbox.
+- The VM is too small to build; it will pull the image at deploy time.
+
+## Parameters
+
+| Name | Example | Resolved from |
+|---|---|---|
+| `{{REGISTRY}}` | `ghcr.io` | provider |
+| `{{OWNER}}` | `pl1n10` | GitHub username (lowercase in image ref) |
+| `{{IMAGE}}` | `toto-mondiale` | repo / app name |
+| `{{WRITE_PAT}}` | `ghp_...` | GitHub PAT, scope `write:packages` |
+
+## Pre-flight checks (do these first, do not skip)
+
+1. `docker build .` succeeds locally.
+2. You have a **classic** PAT with `write:packages` (and `read:packages`).
+3. The image ref owner segment is **lowercase** (`{{OWNER}}` lowercased).
+
+## Steps
+
+### 1. Log in to the registry
+
+```bash
+echo "{{WRITE_PAT}}" | docker login {{REGISTRY}} -u {{OWNER}} --password-stdin
+```
+
+### 2. Build and tag
+
+```bash
+docker build -t {{REGISTRY}}/{{OWNER}}/{{IMAGE}}:latest .
+# optionally also tag with a version / git sha:
+# docker tag ...:latest {{REGISTRY}}/{{OWNER}}/{{IMAGE}}:$(git rev-parse --short HEAD)
+```
+
+### 3. Push
+
+```bash
+docker push {{REGISTRY}}/{{OWNER}}/{{IMAGE}}:latest
+```
+
+### 4. Make the package private (first push only)
+
+On GitHub > Packages > the package > Settings: set visibility **Private**.
+Generate a **read-only** PAT (`read:packages`) for the VM/Watchtower to
+pull with.
+
+## Verify
+
+- `docker pull {{REGISTRY}}/{{OWNER}}/{{IMAGE}}:latest` works from a clean
+  `docker logout` + login with the read-only PAT.
+- The package shows the new digest on GitHub.
+
+## Common pitfalls
+
+- **Uppercase owner**: `ghcr.io/Pl1n10/...` fails; image refs require
+  lowercase. The GitHub username case does not matter for login, only
+  for the image path.
+- **Package defaults to private but unlinked**: link it to the repo and
+  grant the read PAT, or Watchtower's pull 401s.
+- **Re-tagging `:latest` without repushing**: Watchtower keys off the
+  remote digest of `:latest`. Always push after building.
+
+## What this playbook does NOT do
+
+- Does **not** build on the VM (intentional).
+- Does **not** deploy — that is `vm-provision-ansible` (the app role
+  logs in with the read PAT and pulls).
+- Does **not** set up CI; this is a manual devbox push in the MVP.

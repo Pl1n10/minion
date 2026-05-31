@@ -1,19 +1,19 @@
 # HANDOFF.md — Minion
 
-Stato al 2026-05-14 (iterazione 6 chiusa).
+Stato al 2026-05-31 (iterazione 7 chiusa).
 
 ## Stato git
 
 - Branch: `main` (su `origin` come `origin/main`)
 - Remote: `git@github.com:Pl1n10/minion.git`
 - Identità locale: `Pl1n10 <robnovara@gmail.com>`
-- Tag remoti: `v0.1.0-mvp` su `7dfb46a`, `v0.2.0` su `a59f395`, `v0.3.0` su `f2c8c44`
+- Tag remoti: `v0.1.0-mvp`, `v0.2.0`, `v0.3.0`, `v0.4.0` (iter 4)
 - Ultimi commit (vedi `git log --oneline -n 5`):
-  - `f2c8c44` feat: minion teach — auto-populated MINION.md knowledge pack
-  - `a59f395` feat: content-aware brief, minion update, GitHub Actions CI
-  - `034a97c` docs: update HANDOFF with first commit hash and next steps
-  - `7dfb46a` chore: initial MVP scaffold for Minion
-- Working tree: in via di modifica per iter 4 (vedi sotto)
+  - (questo commit) docs: add gcp-deploy playbook family (iter 7)
+  - `7d99679` docs: add TODO backlog from first external dogfooding session
+  - `b48eb39` docs: Minion-aware .gitignore convention in git-setup playbook (iter 6)
+  - `db8c3af` feat: playbook path in MINION.md bullets (iter 5)
+- Working tree: pulito dopo iter 7
 
 ## Goal corrente
 
@@ -141,20 +141,46 @@ Iter 4 in due commit:
 31. Aggiornata anche `~/projects/pawpark/.gitignore` con il blocco
     Minion, e rimosso `state/manifest.json` dal repo (`git rm --cached`).
 
+### Iterazione 7 — famiglia playbook `gcp-deploy` (chiusa)
+
+32. **Cosa**: prima *famiglia* di playbook (più runbook che descrivono
+    una catena unica), nata dal deploy reale di `~/projects/toto-mondiale`.
+    Realizza in parte lo step pending iter 6 #4 ("playbook aggiuntivi").
+    Layout: `src/minion/templates/playbooks/gcp-deploy/` con `INDEX.md`
+    (panoramica + tabella d'ordine + razionale architetturale) e 7
+    `.md.tmpl`: `gcp-project-bootstrap`, `terraform-gce-vm`,
+    `tailscale-join-vm`, `ghcr-publish`, `cloudflare-tunnel`,
+    `vm-provision-ansible`, `oauth-prod-wiring`. Stessa anatomia di
+    `git-setup` (When to use / Parameters / Pre-flight / Steps / Verify /
+    Pitfalls / Does NOT do).
+33. **Modello "codice-nel-repo + playbook-spiega"**: il codice IaC
+    concreto (Terraform + Ansible) vive in `toto-mondiale/infra/`, NON in
+    minion. I playbook minion sono runbook generici parametrici che lo
+    spiegano. Coerente con la hard rule "Minion non esegue / non genera
+    codice": qui restano puro markdown di reference.
+34. **Gap noto (vedi TODO.md)**: `_discover_playbooks()` fa `iterdir()`
+    top-level → NON scopre i `.md.tmpl` nelle sottocartelle. La famiglia
+    `gcp-deploy/` quindi esiste come doc ma non emerge in `minion teach`.
+    Test invariati (asseriscono solo che `git-setup` è presente) →
+    **46 test verdi**, ruff clean, suite non rotta. Render ricorsivo +
+    grouping per famiglia è il follow-up proposto in `TODO.md`.
+
 ## Step in corso
 
-Iter 6 chiusa.
+Iter 7 chiusa.
 
 ## Step pending
 
-1. (Opzionale) tag `v0.6.0` a chiusura iter 6.
-2. (Follow-up) wrap reale di Repowise via `subprocess` quando il
+1. (Follow-up alta priorità) discovery ricorsivo dei playbook +
+   grouping per famiglia, così `gcp-deploy/` emerge in `minion teach`.
+   Dettaglio e motivazione in `TODO.md`.
+2. (Opzionale) tag `v0.7.0` a chiusura iter 7.
+3. (Follow-up) wrap reale di Repowise via `subprocess` quando il
    progetto Repowise OSS è chiarito.
-3. (Idea) aggiungere a `teach` parsing di `[project.scripts]`/
+4. (Idea) aggiungere a `teach` parsing di `[project.scripts]`/
    `bin` per scoprire entrypoints dichiarati e non solo per filename.
-4. (Idea) playbook aggiuntivi: `python-venv-setup`, `pre-commit-setup`,
-   `github-actions-ci`. Solo template generici, personalizzazione locale
-   se ha senso.
+5. (Idea) altri playbook generici: `python-venv-setup`,
+   `pre-commit-setup`, `github-actions-ci`.
 
 ## Decisioni di design non ovvie
 

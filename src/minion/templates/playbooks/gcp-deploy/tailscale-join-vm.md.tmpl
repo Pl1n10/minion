@@ -1,0 +1,83 @@
+# Playbook: tailscale-join-vm
+
+> Make a freshly provisioned VM reachable for administration over
+> Tailscale SSH, with no public SSH port. Covers the auth key, the
+> tailnet ACL, and verification. Generic template — replace the
+> `{{PLACEHOLDERS}}`.
+
+## When to use
+
+- You administer machines over an existing tailnet and want a new VM to
+  join automatically on first boot (driven by the Terraform startup
+  script), then drive it with Ansible.
+
+## Parameters
+
+| Name | Example | Resolved from |
+|---|---|---|
+| `{{TAILNET}}` | `example.ts.net` | Tailscale admin console |
+| `{{TAG}}` | `tag:gcp` | operator convention |
+| `{{ADMIN_USER}}` | `deploy` | matches Ansible `ansible_user` |
+| `{{TS_AUTHKEY}}` | `tskey-auth-...` | generated below |
+
+## Pre-flight checks (do these first, do not skip)
+
+1. The devbox is on the tailnet (`tailscale status`).
+2. You can edit the tailnet ACL (admin console > Access controls).
+
+## Steps
+
+### 1. Define the tag and SSH ACL (one-time per tailnet)
+
+In the tailnet ACL, declare the tag owner and an SSH rule allowing the
+operator to act as `{{ADMIN_USER}}` on tagged hosts:
+
+```jsonc
+"tagOwners": { "{{TAG}}": ["autogroup:admin"] },
+"ssh": [
+  {
+    "action": "accept",
+    "src":    ["autogroup:member"],
+    "dst":    ["{{TAG}}"],
+    "users":  ["{{ADMIN_USER}}", "root"]
+  }
+]
+```
+
+### 2. Generate a reusable, pre-authorized, tagged auth key
+
+Admin console > Settings > Keys > Generate auth key:
+- **Reusable** (so a rebuild can re-use it), **Ephemeral** optional,
+- **Pre-approved**, **Tags:** `{{TAG}}`.
+
+Copy `{{TS_AUTHKEY}}` and feed it to Terraform as
+`TF_VAR_tailscale_authkey` (never commit it). The startup script runs
+`tailscale up --authkey=... --ssh --hostname=<name>`.
+
+### 3. Let the VM join
+
+This happens automatically on first boot via the Terraform startup
+script. No manual step on the VM.
+
+## Verify
+
+- The VM shows up in the admin console under `{{TAG}}`, status Connected.
+- From the devbox: `tailscale ping <hostname>` succeeds.
+- `ssh {{ADMIN_USER}}@<hostname>` works **without** a key file (Tailscale
+  SSH brokers it) and `sudo -n true` succeeds (passwordless sudo set by
+  the startup script).
+
+## Common pitfalls
+
+- **ACL missing the ssh block**: the node joins but `ssh` is refused.
+  Tailscale SSH needs an explicit `ssh` ACL rule, not just node access.
+- **Key not tagged**: an untagged key joins as a user-owned device and
+  the `{{TAG}}` ACL won't match. Regenerate with the tag.
+- **`--accept-dns` clobbering resolv.conf**: the startup script uses
+  `--accept-dns=false` to avoid surprising the VM's DNS.
+
+## What this playbook does NOT do
+
+- Does **not** install Tailscale by hand — the Terraform startup script
+  does it on first boot.
+- Does **not** open port 22 publicly (Tailscale SSH is the only path).

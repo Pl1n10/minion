@@ -1,0 +1,97 @@
+# Playbook: gcp-project-bootstrap
+
+> Prepare a GCP project so Terraform can run against it from the devbox:
+> billing, Application Default Credentials, required APIs, and the GCS
+> bucket that will hold remote Terraform state. Generic template —
+> replace the `{{PLACEHOLDERS}}`.
+
+## When to use
+
+- You have a Google account with billing enabled and want to host a
+  project's infra on GCP.
+- Terraform/Ansible will run from the devbox; this is the one-time
+  account-side setup that must precede `terraform init`.
+
+If you have no billing account yet, **stop** — create it in the Cloud
+Console first; this playbook does not create accounts.
+
+## Parameters
+
+| Name | Example | Resolved from |
+|---|---|---|
+| `{{PROJECT_ID}}` | `toto-mondiale` | operator choice (globally unique) |
+| `{{REGION}}` | `us-central1` | free-tier region |
+| `{{STATE_BUCKET}}` | `rn-tfstate` | operator choice (globally unique) |
+| `{{BILLING_ACCOUNT_ID}}` | `0X0X0X-0X0X0X-0X0X0X` | Cloud Console > Billing |
+
+## Pre-flight checks (do these first, do not skip)
+
+1. `gcloud version` — if missing, install the Cloud SDK on the devbox.
+2. `gcloud auth list` — confirm you are logged in as the owning account.
+3. Confirm the billing account ID: `gcloud billing accounts list`.
+
+## Steps
+
+### 1. Create (or select) the project
+
+```bash
+gcloud projects create {{PROJECT_ID}} --name="{{PROJECT_ID}}"
+gcloud config set project {{PROJECT_ID}}
+gcloud billing projects link {{PROJECT_ID}} --billing-account={{BILLING_ACCOUNT_ID}}
+```
+
+### 2. Application Default Credentials for Terraform
+
+```bash
+gcloud auth application-default login
+```
+
+This writes ADC the Terraform google provider picks up automatically.
+No service-account key file is created or committed.
+
+### 3. Enable the APIs Terraform will touch
+
+```bash
+gcloud services enable \
+  compute.googleapis.com \
+  iam.googleapis.com \
+  cloudbilling.googleapis.com \
+  billingbudgets.googleapis.com
+```
+
+(`billingbudgets` only if you want the budget alert resource.)
+
+### 4. Create the GCS bucket for Terraform state
+
+```bash
+gcloud storage buckets create gs://{{STATE_BUCKET}} \
+  --location={{REGION}} --uniform-bucket-level-access
+gcloud storage buckets update gs://{{STATE_BUCKET}} --versioning
+```
+
+Then set this bucket in the project's `terraform/backend.tf`
+(`bucket = "{{STATE_BUCKET}}"`, `prefix = "<project>/vm"`).
+
+## Verify
+
+- `gcloud config get-value project` returns `{{PROJECT_ID}}`.
+- `gcloud services list --enabled | grep compute` is non-empty.
+- `gcloud storage buckets describe gs://{{STATE_BUCKET}}` shows
+  versioning enabled.
+- `gcloud auth application-default print-access-token` returns a token.
+
+## Common pitfalls
+
+- **Bucket name taken**: GCS bucket names are global. Pick a unique
+  prefix (initials + `-tfstate`).
+- **Budget needs org/billing perms**: `billingbudgets` resources require
+  the Billing Account Administrator role. If you lack it, skip the
+  budget and set an alert manually in the console.
+- **Wrong ADC identity**: `application-default login` is separate from
+  `gcloud auth login`. Terraform uses the ADC one.
+
+## What this playbook does NOT do
+
+- Does **not** create the Google account or a billing account.
+- Does **not** run Terraform — that is `terraform-gce-vm`.
+- Does **not** create service-account JSON keys (ADC instead).

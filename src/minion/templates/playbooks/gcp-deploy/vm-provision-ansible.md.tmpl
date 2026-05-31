@@ -1,0 +1,93 @@
+# Playbook: vm-provision-ansible
+
+> Configure the VM and deploy the app with Ansible over Tailscale SSH:
+> hardening (swap, sshd, unattended-upgrades, fail2ban), Docker Engine,
+> and the app stack (app + cloudflared + Watchtower auto-update). Generic
+> template — replace the `{{PLACEHOLDERS}}`.
+
+## When to use
+
+- The VM is up and on the tailnet (`terraform-gce-vm` + `tailscale-join-vm`).
+- The image is pushed (`ghcr-publish`) and the tunnel token exists
+  (`cloudflare-tunnel`).
+- You have the project's `infra/ansible/` (copy the toto-mondiale shape).
+
+## Parameters
+
+| Name | Example | Resolved from |
+|---|---|---|
+| `{{HOST}}` | `toto-mondiale` | Tailscale hostname (TF output) |
+| `{{ADMIN_USER}}` | `deploy` | tailscale-join-vm |
+| `{{APP_IMAGE}}` | `ghcr.io/pl1n10/toto-mondiale:latest` | ghcr-publish |
+| `{{READ_PAT}}` | `ghp_...` | GitHub PAT, scope `read:packages` |
+| secrets | `airtable_*`, `auth_*`, `tunnel_token` | vault / `--extra-vars` |
+
+## Pre-flight checks (do these first, do not skip)
+
+1. `ssh {{ADMIN_USER}}@{{HOST}}` works (Tailscale SSH) and `sudo -n true`
+   succeeds.
+2. `inventory.ini` points at `{{HOST}}` with `ansible_user={{ADMIN_USER}}`.
+3. `group_vars/all.yml` (or a vault file) holds the secrets — never
+   committed.
+4. Lint/syntax are green on the devbox:
+   `ansible-lint && ansible-playbook site.yml --syntax-check`.
+5. Collections installed:
+   `ansible-galaxy collection install -r requirements.yml`.
+
+## Steps
+
+### 1. Dry run
+
+```bash
+cd infra/ansible
+ansible-playbook site.yml --check --diff
+```
+
+`--check` is approximate (Docker tasks can't fully no-op), but it catches
+inventory/auth/template errors before touching the box.
+
+### 2. Apply, role by role on the first run
+
+```bash
+ansible-playbook site.yml --tags hardening
+ansible-playbook site.yml --tags docker
+ansible-playbook site.yml --tags app
+```
+
+Running tags separately the first time makes failures easy to localize.
+Afterwards `ansible-playbook site.yml` runs all three idempotently.
+
+### 3. What the app role does
+
+Logs in to the registry with `{{READ_PAT}}`, renders `.env.production`
+and `docker-compose.yml` from templates, pulls `{{APP_IMAGE}}`, and
+brings up app + cloudflared + Watchtower. Watchtower polls the registry
+and recreates the app when `:latest` changes — so future deploys are
+just `ghcr-publish` again.
+
+## Verify
+
+- `ssh {{ADMIN_USER}}@{{HOST}} 'free -h'` shows the swap active.
+- `docker compose -f {{APP_DIR}}/docker-compose.yml ps` shows app,
+  cloudflared, watchtower all Up.
+- The Cloudflare tunnel reads Healthy; `curl -I https://<domain>` serves
+  the app.
+- Re-running the playbook reports `changed=0` (idempotent).
+
+## Common pitfalls
+
+- **Watchtower can't pull the private image**: it reads the docker login
+  written by the app role (`~/.docker/config.json` mounted read-only).
+  If the login expired/rotated, re-run the app role.
+- **Secrets echoed in logs**: the secret-bearing tasks use `no_log: true`.
+  Keep it that way; don't add `-vvv` dumps of those tasks.
+- **`--check` fails on Docker modules**: expected; they need the daemon.
+  Use tag-scoped real runs instead for the docker/app roles.
+- **OOM during runtime**: confirm the swap step ran; a 1 GB box without
+  swap will kill containers under load.
+
+## What this playbook does NOT do
+
+- Does **not** build the image (built on the devbox, `ghcr-publish`).
+- Does **not** open inbound ports (ingress is the tunnel only).
+- Does **not** manage a database or volumes (stateless app assumption).

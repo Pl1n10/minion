@@ -243,6 +243,29 @@ convenzioni di naming, gli IP range, i sottodomini standard sono
 codificati in YAML/HCL nei `playbooks/` con parametri risolti dalla
 sezione personale (come oggi `git-setup.md`).
 
+### Discovery dei playbook deve diventare ricorsiva (e raggruppare famiglie)
+
+**Osservato (2026-05-31).** Aggiunta la prima *famiglia* di playbook,
+`templates/playbooks/gcp-deploy/` (INDEX + 7 `.md.tmpl`: project
+bootstrap, terraform VM, tailscale join, ghcr publish, cloudflare
+tunnel, ansible provision, oauth wiring). Nata dal deploy reale di
+toto-mondiale, il cui `infra/` (Terraform + Ansible) è l'istanza
+concreta che questi runbook descrivono — pattern "codice-nel-repo,
+playbook-spiega".
+
+**Perché serve.** `_discover_playbooks()` in `teach.py` fa
+`root.iterdir()` (solo top-level) e quindi NON vede i playbook nelle
+sottocartelle: la famiglia `gcp-deploy/` esiste ma non emerge in
+`minion teach`. Finché il discovery resta flat, le famiglie sono solo
+documentazione di riferimento, non sono indicizzate nel MINION.md.
+
+**Proposta.** Rendere il discovery ricorsivo (`rglob("*.md.tmpl")`),
+derivare lo `slug` dal path relativo (es. `gcp-deploy/terraform-gce-vm`),
+e nel rendering raggruppare per cartella-famiglia con l'`INDEX.md` (se
+presente) come intestazione. Aggiornare `test_teach.py` di conseguenza
+(oggi asserisce solo che `git-setup` è presente, quindi non si rompe,
+ma andrebbe esteso per coprire le famiglie).
+
 ### Hard rule del CLAUDE.md di Minion da rivedere
 
 Quando si arriva a iniziare il lavoro su `minion run`, **prima cosa**:

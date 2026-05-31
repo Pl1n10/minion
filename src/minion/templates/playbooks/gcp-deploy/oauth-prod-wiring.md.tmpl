@@ -1,0 +1,76 @@
+# Playbook: oauth-prod-wiring
+
+> Add the production callback URL and JS origin to an existing OAuth
+> client so social login works behind the public domain, then verify the
+> end-to-end login. Generic template — replace the `{{PLACEHOLDERS}}`.
+
+## When to use
+
+- The app already uses an OAuth provider (e.g. Google) that worked on
+  `http://localhost:3000` in dev.
+- The app is now reachable at its public domain via the tunnel.
+
+## Parameters
+
+| Name | Example | Resolved from |
+|---|---|---|
+| `{{DOMAIN}}` | `t0t0m0ndlale.online` | registered domain |
+| `{{PROVIDER}}` | `google` | auth provider |
+| `{{CALLBACK_PATH}}` | `/api/auth/callback/google` | framework (Auth.js) |
+
+## Pre-flight checks (do these first, do not skip)
+
+1. `https://{{DOMAIN}}` serves the app (tunnel Healthy).
+2. The VM env has `AUTH_URL=https://{{DOMAIN}}` (matches the domain
+   exactly — scheme + host, no trailing slash).
+3. You can edit the OAuth client (e.g. Google Cloud Console >
+   Credentials > the existing Web client).
+
+## Steps
+
+### 1. Add the production redirect URI
+
+In the OAuth client's **Authorized redirect URIs**, add:
+
+```
+https://{{DOMAIN}}{{CALLBACK_PATH}}
+```
+
+Keep the existing `http://localhost:3000{{CALLBACK_PATH}}` for dev.
+
+### 2. Add the production JS origin
+
+In **Authorized JavaScript origins**, add:
+
+```
+https://{{DOMAIN}}
+```
+
+### 3. Save and wait
+
+Google can take a few minutes to propagate client changes.
+
+## Verify
+
+- Open `https://{{DOMAIN}}`, click sign in with `{{PROVIDER}}`, complete
+  the consent, and land back authenticated (the callback resolves).
+- A non-allowlisted account is rejected by the app's own gate (if one
+  exists), not by an OAuth error — that confirms authn vs authz separation.
+- Session cookie is set on `{{DOMAIN}}`, login persists across reloads.
+
+## Common pitfalls
+
+- **`redirect_uri_mismatch`**: the URI must match **exactly**, including
+  scheme and no trailing slash. `AUTH_URL` must equal the public origin
+  or the framework builds the wrong callback.
+- **Behind a proxy/tunnel host mismatch**: ensure the app trusts the
+  forwarded host (`AUTH_URL` pin handles this for Auth.js) so it does not
+  infer an internal host.
+- **Editing the wrong client**: dev and prod often share one client; add
+  URIs, do not replace the dev ones.
+
+## What this playbook does NOT do
+
+- Does **not** create the OAuth client or consent screen (one-time dev
+  setup).
+- Does **not** manage the app's own authorization/allowlist logic.

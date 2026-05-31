@@ -1,0 +1,85 @@
+# Playbook: terraform-gce-vm
+
+> Provision a single small GCE VM with Terraform from the devbox: a
+> dedicated VPC with no ingress, a least-privilege service account, an
+> ephemeral external IP for egress only, and a startup script that joins
+> the box to Tailscale. Generic template — replace the `{{PLACEHOLDERS}}`.
+
+## When to use
+
+- `gcp-project-bootstrap` is done (project, ADC, APIs, state bucket).
+- You have the project's `infra/terraform/` (copy the toto-mondiale shape).
+- You have a Tailscale auth key ready (`tailscale-join-vm` parameters).
+
+## Parameters
+
+| Name | Example | Resolved from |
+|---|---|---|
+| `{{PROJECT_ID}}` | `toto-mondiale` | gcp-project-bootstrap |
+| `{{REGION}}` / `{{ZONE}}` | `us-central1` / `us-central1-a` | free-tier region |
+| `{{MACHINE_TYPE}}` | `e2-micro` | Always Free shape |
+| `{{STATE_BUCKET}}` | `rn-tfstate` | gcp-project-bootstrap |
+| `{{TS_AUTHKEY}}` | `tskey-auth-...` | tailscale-join-vm |
+
+## Pre-flight checks (do these first, do not skip)
+
+1. `terraform version` >= 1.6 on the devbox.
+2. `backend.tf` has the real `{{STATE_BUCKET}}` (not `CHANGE_ME`).
+3. Secrets are in `terraform.tfvars` (gitignored) **or** exported as
+   `TF_VAR_*`. Never commit the auth key.
+4. `terraform validate` passes offline:
+   `terraform init -backend=false && terraform validate`.
+
+## Steps
+
+### 1. Initialize against the remote backend
+
+```bash
+cd infra/terraform
+terraform init   # configures the GCS backend
+```
+
+### 2. Review the plan
+
+```bash
+export TF_VAR_tailscale_authkey="{{TS_AUTHKEY}}"
+terraform plan -var project_id={{PROJECT_ID}}
+```
+
+Read the plan: expect one VPC, one subnet, one service account, one
+instance, (optionally) one budget. No firewall *allow* rules — that is
+intentional (no public ingress).
+
+### 3. Apply
+
+```bash
+terraform apply -var project_id={{PROJECT_ID}}
+```
+
+The VM boots and the startup script installs Tailscale and runs
+`tailscale up --ssh`. Give it a minute.
+
+## Verify
+
+- `terraform output` shows `instance_name`, `external_ip`,
+  `tailscale_hostname`.
+- The VM appears in the Tailscale admin console as the hostname, tagged.
+- `terraform plan` re-run reports **No changes** (idempotent).
+
+## Common pitfalls
+
+- **`e2-micro` not free outside US**: keep the region in
+  us-west1/us-central1/us-east1, disk standard-PD <= 30 GB.
+- **Backend can't create its own bucket**: the bucket must already exist
+  (gcp-project-bootstrap). A backend block does not bootstrap itself.
+- **Auth key in state**: it is marked `sensitive`, but never echo
+  `terraform output -json` into logs. Rotate the key after first boot if
+  it was one-off; prefer reusable+ephemeral.
+- **Startup script edits need a reboot/recreate**: changing the script
+  does not re-run it on a live VM. Recreate the instance to re-trigger.
+
+## What this playbook does NOT do
+
+- Does **not** open any inbound port (by design).
+- Does **not** configure the OS — that is `vm-provision-ansible`.
+- Does **not** create the Tailscale auth key — that is `tailscale-join-vm`.

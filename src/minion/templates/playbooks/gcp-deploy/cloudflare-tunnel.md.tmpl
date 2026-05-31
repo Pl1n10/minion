@@ -1,0 +1,74 @@
+# Playbook: cloudflare-tunnel
+
+> Expose an app running on a VM to the public internet through a
+> Cloudflare Tunnel, with no inbound ports on the VM. Produces the tunnel
+> token that the `cloudflared` container consumes. Generic template —
+> replace the `{{PLACEHOLDERS}}`.
+
+## When to use
+
+- The domain is already added to Cloudflare (nameservers changed, zone
+  Active). If not, **stop** and onboard the domain first.
+- The app listens inside the compose network (e.g. `app:3000`) with no
+  host port.
+
+## Parameters
+
+| Name | Example | Resolved from |
+|---|---|---|
+| `{{DOMAIN}}` | `t0t0m0ndlale.online` | registered domain |
+| `{{TUNNEL_NAME}}` | `toto-mondiale` | operator choice |
+| `{{SERVICE_URL}}` | `http://app:3000` | compose service name + port |
+| `{{TUNNEL_TOKEN}}` | `eyJ...` | produced below |
+
+## Pre-flight checks (do these first, do not skip)
+
+1. In the Cloudflare dashboard the zone for `{{DOMAIN}}` is **Active**.
+2. You have access to **Zero Trust > Networks > Tunnels**.
+
+## Steps
+
+### 1. Create the tunnel (dashboard / "remote" tunnel)
+
+Zero Trust > Networks > Tunnels > **Create a tunnel** > Cloudflared.
+Name it `{{TUNNEL_NAME}}`. On the install screen, copy the **token**
+(the long string after `--token`). That is `{{TUNNEL_TOKEN}}`.
+
+Do **not** install the connector on the VM by hand — the `cloudflared`
+container runs `tunnel --no-autoupdate run` with this token.
+
+### 2. Add a public hostname route
+
+In the tunnel's **Public Hostname** tab:
+- Hostname: `{{DOMAIN}}` (and/or a subdomain)
+- Service: `{{SERVICE_URL}}` (the compose service, e.g. `http://app:3000`)
+
+Cloudflare creates the proxied DNS record automatically.
+
+### 3. Hand the token to the deploy
+
+Put `{{TUNNEL_TOKEN}}` into the VM's env (`TUNNEL_TOKEN=` in
+`.env.production`, via the Ansible app role / vault). Never commit it.
+
+## Verify
+
+- After the stack is up, the tunnel shows **Healthy** in Zero Trust.
+- `curl -I https://{{DOMAIN}}` returns a response served by the app, with
+  Cloudflare TLS (no port opened on the VM).
+- `nmap` / a port scan of the VM's external IP shows no open app ports.
+
+## Common pitfalls
+
+- **Service URL points at localhost**: inside compose, `cloudflared`
+  reaches the app by **service name** (`http://app:3000`), not
+  `localhost`. They share the compose network.
+- **Token treated as non-secret**: the tunnel token authenticates the
+  connector. Rotate it if leaked (recreate the tunnel).
+- **Zone not active yet**: nameserver propagation can take time; the
+  public hostname won't resolve until the zone is Active.
+
+## What this playbook does NOT do
+
+- Does **not** register the domain or change nameservers.
+- Does **not** install `cloudflared` on the host (it runs as a container).
+- Does **not** open inbound firewall ports (the whole point).
