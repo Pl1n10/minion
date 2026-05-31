@@ -92,6 +92,17 @@ Then set this bucket in the project's `terraform/backend.tf`
   budget and set an alert manually in the console.
 - **Wrong ADC identity**: `application-default login` is separate from
   `gcloud auth login`. Terraform uses the ADC one.
+- **Fresh consumer (gmail) account gets `invalid_grant` in headless use**:
+  a brand-new gmail without a phone number, driven from a server IP, is
+  flagged by Google and its OAuth refresh tokens are revoked within
+  minutes — both CLI and ADC start failing with
+  `invalid_grant: Bad Request`. Fixes, in order of robustness:
+  (1) operate gcloud/Terraform as an **established** account (add it as
+  project Owner; the project and the app's OAuth client stay where they
+  are); (2) create a **service-account key** for the control plane and
+  use `GOOGLE_APPLICATION_CREDENTIALS` — SA keys are not subject to the
+  consumer-account flagging, so this is the durable headless choice;
+  (3) add a phone number to the flagged account. Prefer (1)+(2).
 
 ## What this playbook does NOT do
 
