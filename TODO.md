@@ -149,6 +149,64 @@ la prossima azione probabile, per esempio: *"Found `HANDOFF.md` with
 section 'STEP 7'. Run `minion brief --from-handoff` to scaffold a
 brief for it."*
 
+## Roadmap playbook per livelli di universalità (sessione 2026-06-15)
+
+**Osservato.** Aggiunti due playbook top-level: `git-setup` (già c'era) e
+`tailscale-join-existing-vm` (nuovo — VM homelab già esistente che rientra sul
+tailnet via authkey reusable per raggiungere un servizio interno, es. Ollama su
+`pc-erica`; distinto dal `gcp-deploy/tailscale-join-vm` che fa auto-join al boot
+via Terraform startup script). Discutendo "cosa altro insegnargli" è emerso che
+ragionavo per *catene di deploy* invece che per *cosa tocca ogni repo*.
+
+**Perché serve.** Il criterio "merita un playbook" è: codifica una **cicatrice o
+una convenzione non ovvia**, non qualcosa che il modello già sa fare a braccio.
+E i candidati vanno ordinati per **livello di universalità**, non per verticale
+tecnologica. Confondere "ricorrente nei deploy" con "su tutti i progetti" porta
+a scrivere i playbook nell'ordine sbagliato.
+
+**Proposta — i playbook mancanti, per livello:**
+
+- **L0 — ogni repo:** `git-setup` ✅.
+- **L1 — ogni repo in cui si lavora davvero:**
+  - `pre-commit` + ruff + mypy (il quality gate; è la cosa che si mette
+    *subito dopo* git, ovunque). ⭐ primo da scrivere.
+  - scaffold del doc-set + HANDOFF (CLAUDE/DECISIONS/FAILURES/STATE/HANDOFF —
+    il metodo di Roberto, già obbligatorio nel global CLAUDE.md).
+- **L2 — ogni repo di un dato stack:** `test-harness-bootstrap` (mock-LLM-sempre,
+  PG rollback/`pytest-postgresql`, seed fissi, snapshot — regole dure già negli
+  anti-pattern del global CLAUDE.md).
+- **L3 — solo i repo che si deployano (catena homelab, parallela a gcp-deploy):**
+  `proxmox-create-vm` (regola VMID cluster-wide + quirk template Ubuntu, già in
+  `~/infra/proxmox.md`) → `vm-hardening` → `tailscale-join-existing-vm` ✅ →
+  `systemd-service-deploy` → `postgres-peer-bootstrap` → `cloudflare-tunnel`.
+
+**Note non ovvie da non perdere:**
+- `systemd-service-deploy` è il più prezioso del L3: incapsula l'**incidente del
+  12-06** (`rsync --delete` senza `--exclude .env` ha cancellato i secrets in
+  prod). Quella regola dentro un playbook vale più di mille righe di codice.
+- `vm-hardening`: scriverlo come **ruolo Ansible** (non lista bash — c'è già
+  ansible-lint profilo `production`), con due profili via parametro *esposizione*
+  (tailnet-only vs internet-facing). Cicatrice da codificare: hardening che
+  chiude l'SSH pubblico + accesso solo-Tailscale = se Tailscale cade (urano giù
+  il 15-06 ~22:22) sei murato fuori → tenere un break-glass esplicito (console
+  Proxmox). E la stessa definizione-come-codice serve due scopi: *applicare* ora
+  alla VM clonata, *cuocere* domani il template Ubuntu hardened (Packer/cloud-init);
+  poi il playbook cambia mestiere da "applica" a "verifica drift". Quindi il
+  playbook di hardening **è la strada verso l'immagine già fatta**, non un ripiego.
+- `cloudflare-tunnel`: esiste già sotto `gcp-deploy/`; il meccanismo (cloudflared
+  + named tunnel) è identico → **generalizzare**, non forkare. Per `tailscale` il
+  fork era giustificato perché il meccanismo diverge (boot auto-join vs VM
+  esistente). Decidere generalizza-vs-forka caso per caso, in base a quanto
+  diverge il *meccanismo*, non il contesto.
+- Token: il risparmio è il beneficio *minore* e il playbook costa token a
+  caricarsi; si ripaga quando la procedura è lunga+stabile+piena di gotcha
+  (hardening lo è). La motivazione vera è coerenza e non-bloccarsi-fuori.
+
+**Cosa tenere FUORI:** la logica applicativa per-progetto (scoring SideBiz,
+parsing ZFSSA, trigger Robo-PAC) — è il livello sbagliato; quello è proprio ciò
+che l'assistente deve *ragionare* ogni volta, non copiare. E `gitea-woodpecker-
+pipeline`: naturale ma prematuro finché Gitea non è deployato.
+
 ## Note di metodo
 
 - Queste osservazioni vengono da **un solo** uso reale. Replicare il
