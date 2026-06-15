@@ -1,0 +1,114 @@
+# Playbook: tailscale-join-existing-vm
+
+> Join an **already-provisioned, already-SSH-reachable** VM to the tailnet
+> with a reusable auth key, so it can reach an internal Tailscale service
+> (e.g. a remote Ollama node) — driven from the devbox over the existing
+> SSH path. Generic template — replace the `{{PLACEHOLDERS}}`.
+>
+> Different from `gcp-deploy/tailscale-join-vm`: that one auto-joins a
+> fresh VM on first boot via a Terraform startup script and uses Tailscale
+> SSH. This one is for an existing homelab VM you already administer over a
+> normal SSH path (often through a Proxmox jump host), that simply needs to
+> get back onto the tailnet to consume a service. No Tailscale SSH, no
+> startup script.
+
+## When to use
+
+- A VM already exists and you can `ssh {{VM_SSH_ALIAS}}` into it (possibly
+  via a `ProxyJump`), with passwordless `sudo`.
+- `tailscale status` on that VM says **"Logged out"** (or it was never
+  joined / the key expired), so it cannot reach an internal tailnet
+  service it needs — e.g. `{{TARGET_SERVICE}}`.
+- You have (or can generate) a **reusable** Tailscale auth key.
+
+If instead you are provisioning a brand-new cloud VM that should join on
+first boot, use `gcp-deploy/tailscale-join-vm` — not this one.
+
+## Parameters
+
+| Name | Example | Resolved from |
+|---|---|---|
+| `{{VM_SSH_ALIAS}}` | `jobpool-vm` | `~/.ssh/config` (may use ProxyJump) |
+| `{{VM_TS_HOSTNAME}}` | `jobpool-vm` | operator convention (tailnet name) |
+| `{{TS_AUTHKEY_FILE}}` | `~/.ts_authkey` | local, gitignored, `chmod 600` |
+| `{{TARGET_SERVICE}}` | `Ollama @ 100.100.140.30:11434` | the service the VM must reach |
+| `{{TARGET_HEALTH_URL}}` | `http://100.100.140.30:11434/api/version` | health probe of that service |
+
+## Pre-flight checks (do these first, do not skip)
+
+1. The **devbox** is on the tailnet and can reach the target itself:
+   `tailscale status` is healthy and
+   `curl -s --max-time 8 {{TARGET_HEALTH_URL}}` returns.
+   If the devbox can't reach the target either, the problem is the target
+   (node off / tailnet issue), not the VM — stop and fix that first.
+2. The VM is reachable: `ssh {{VM_SSH_ALIAS}} 'echo OK && sudo -n true'`.
+   If this fails, the VM (or its jump host) is down — **stop**: you cannot
+   join a VM you cannot reach. (Homelab note: if the VM lives on a Proxmox
+   node and that node/jump host is offline, the VM is gone with it.)
+3. The auth key is staged locally and never enters git or chat:
+   ```bash
+   umask 077; printf '%s' 'tskey-...' > {{TS_AUTHKEY_FILE}}   # operator writes this
+   test -s {{TS_AUTHKEY_FILE}} && grep -q '^tskey-' {{TS_AUTHKEY_FILE}} && echo key-ok
+   ```
+   Pass it by command substitution so the literal key never appears in the
+   command text or output (`tailscale up` does not echo it).
+
+## Steps
+
+### 1. Bring the VM onto the tailnet
+
+```bash
+# from the devbox; the $(cat ...) expands locally, key not printed
+timeout 60 ssh {{VM_SSH_ALIAS}} \
+  "sudo tailscale up --authkey='$(cat {{TS_AUTHKEY_FILE}})' \
+     --hostname={{VM_TS_HOSTNAME}} --accept-dns=false; echo exit:\$?"
+```
+
+- `--accept-dns=false`: do **not** let Tailscale rewrite the VM's
+  `resolv.conf` — it only needs to reach one service, not use MagicDNS.
+- Do **not** pass `--advertise-routes`, `--exit-node`, or `--ssh`: this is
+  a plain client join to consume a service, nothing more.
+- **Expect the SSH session to drop** while `tailscale up` reconfigures the
+  interface (you may see "Connection timed out during banner exchange").
+  That's normal — the join still completes. Verify in the next step rather
+  than trusting this command's exit code.
+
+### 2. Verify
+
+```bash
+ssh {{VM_SSH_ALIAS}} 'tailscale status | head -3'      # VM line shows an IP, not "Logged out"
+ssh {{VM_SSH_ALIAS}} 'curl -s --max-time 8 {{TARGET_HEALTH_URL}}'   # the VM now reaches the service
+```
+
+The first command must show the VM with a `100.x` address and the target
+peer; the second must return the service's health payload **from the VM**.
+
+### 3. Clean up the local key
+
+- If the key is single-use, `shred -u {{TS_AUTHKEY_FILE}}`.
+- If you deliberately keep it **reusable** for re-runs of this playbook,
+  leave it in `{{TS_AUTHKEY_FILE}}` (gitignored, `chmod 600`) and **never**
+  inline it into any committed or personal-instance file — reference the
+  path only. Revoke it from the admin console when retired.
+
+## Common pitfalls
+
+- **Target is intermittently powered** (e.g. a desktop GPU box running
+  Ollama). A failed health probe may just mean the box is off, not a
+  tailnet fault: check `tailscale status` — an *offline peer* (seen N min
+  ago) vs an *unreachable* one tells them apart. Downstream this is fine
+  if the consumer treats scoring as backloggable.
+- **Confusing this with Tailscale SSH.** Here you still reach the VM over
+  your normal SSH path; the join only grants tailnet *egress* to the
+  service. Don't expect `ssh user@{{VM_TS_HOSTNAME}}` to work unless you
+  also set up an SSH ACL (that's the gcp playbook's job).
+- **Key in plaintext somewhere committable.** The personal instance file
+  and any commit must reference `{{TS_AUTHKEY_FILE}}`, never the `tskey-`
+  value.
+
+## What this playbook does NOT do
+
+- Does **not** install Tailscale (assume it's already on the VM).
+- Does **not** create the auth key or edit tailnet ACLs.
+- Does **not** open or configure SSH on the VM (uses the existing path).
+- Does **not** advertise routes or make the VM an exit node.
